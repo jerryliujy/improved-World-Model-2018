@@ -69,13 +69,25 @@ class VAE(nn.Module):
         return self.decode(z), mu, logvar
     
     def loss(self, recon, x, mu, logvar, beta=2.0):
+        """
+        Compute VAE loss (reconstruction + KL divergence).
+        
+        Args:
+            recon: Reconstructed images from decoder
+            x: Original input images
+            mu: Mean of latent distribution
+            logvar: Log variance of latent distribution
+            beta: Weight for KL divergence term (default: 2.0)
+            
+        Returns:
+            total_loss: Scalar loss value
+        """
         batch_size = x.size(0)
 
         recon_loss = nn.functional.mse_loss(recon, x, reduction='sum') / batch_size
         
         kl_loss = (-0.5 * torch.sum(1 + logvar - mu.pow(2) - logvar.exp())) / batch_size
-
          
         total_loss = recon_loss + beta * kl_loss
         
-        return total_loss, recon_loss, kl_loss
+        return total_loss

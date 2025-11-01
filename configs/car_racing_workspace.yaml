@@ -1,0 +1,56 @@
+name: car_racing_workspace
+
+device: cuda
+
+workspace:
+  _target_: workspace.car_racing_workspace.CarRacingWorkspace
+
+dataset:
+  train: car_racing_data.h5
+  train_ratio: 0.7
+  val_ratio: 0.15
+  test_ratio: 0.15
+  to_grayscale: true
+  num_workers: 0
+
+training:
+  stage: 1                    # 1: VAE, 2: MDNRNN, 3: Controller
+  seed: 42
+  num_epochs: 100
+  batch_size: 64
+  save_interval: 10           # Save checkpoint every N epochs
+  checkpoint_dir: checkpoints
+  plot_save_dir: outputs/plots
+  train_method: standard      # standard or cma_es
+  
+  # Optimizer configuration
+  optimizer:
+    _target_: torch.optim.Adam
+    lr: 0.001
+    betas: [0.9, 0.999]
+    eps: 1e-8
+
+# Vision model (VAE) configuration
+vision:
+  _target_: models.vae.VAE
+  image_channels: 3
+  latent_dim: 32
+
+# Memory model (MDNRNN) configuration
+predictor:
+  _target_: models.mdnrnn.MDNRNN
+  latent_dim: 32
+  action_dim: 3
+  hidden_dim: 256
+  num_gaussians: 5
+  num_layers: 1
+
+# Controller configuration
+controller:
+  _target_: models.controller.Controller
+  state_dim: 288              # latent_dim(32) + hidden_dim(256)
+  action_dim: 3
+
+eval:
+  save_video: true
+  video_filename: car_racing_eval.avi

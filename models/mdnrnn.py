@@ -136,6 +136,21 @@ class MDNRNN(nn.Module):
         pi, mu, sigma = self.mdn(outs_rnn, tau)
         
         return pi, mu, sigma, h
+    
+    
+    def loss(self, model_output, z_next):
+        """
+        Compute MDN-RNN loss (negative log-likelihood of mixture of Gaussians).
+        
+        Args:
+            model_output: Tuple of (pi, mu, sigma, h) from forward pass
+            z_next: Target latent vectors [batch_size, seq_len, latent_dim]
+            
+        Returns:
+            nll: Scalar negative log-likelihood loss
+        """
+        pi, mu, sigma, _ = model_output
+        return gaussian_nll_loss(pi, mu, sigma, z_next)
 
 
 def sample_mdn(pi, mu, sigma):

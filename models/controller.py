@@ -54,3 +54,17 @@ class Controller(nn.Module):
         with torch.no_grad():  
             action = self.forward(state)
         return action.squeeze()
+    
+    
+    def loss(self, predicted_actions, target_actions):
+        """
+        Compute controller loss (MSE between predicted and target actions).
+        
+        Args:
+            predicted_actions: Actions predicted by the controller
+            target_actions: Target/true actions from the dataset
+            
+        Returns:
+            loss: Scalar MSE loss value
+        """
+        return nn.functional.mse_loss(predicted_actions, target_actions)
