@@ -1,2 +1,3 @@
-/latent_space_aniamtion.py
-/videos
+checkpoints/
+logs/
+outputs/
