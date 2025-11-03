@@ -40,19 +40,16 @@ def get_car_racing_loaders(
     
     # Create a SINGLE dataset (no splitting here)
     dataset = CarRacingDataset(h5_path=h5_path, to_grayscale=to_grayscale)
+
+    total_frames = len(dataset)
     
-    # Calculate split indices at the EPISODE level to avoid data leakage
-    total_episodes = dataset.__getitem__(0)[0].shape[0]
-    max_steps = dataset.__getitem__(0)[0].shape[1]
+    train_size = int(total_frames * train_ratio)
+    val_size = int(total_frames * val_ratio)
+    test_size = total_frames - train_size - val_size
     
-    train_end_ep = int(total_episodes * train_ratio)
-    val_end_ep = train_end_ep + int(total_episodes * val_ratio)
-    
-    # Convert episode indices to frame indices
-    train_indices = [i for i in range(len(dataset)) if (i // max_steps) < train_end_ep]
-    val_indices = [i for i in range(len(dataset)) 
-                   if train_end_ep <= (i // max_steps) < val_end_ep]
-    test_indices = [i for i in range(len(dataset)) if (i // max_steps) >= val_end_ep]
+    train_indices = list(range(0, train_size))
+    val_indices = list(range(train_size, train_size + val_size))
+    test_indices = list(range(train_size + val_size, total_frames))
     
     # Create subsets
     train_subset = Subset(dataset, train_indices)

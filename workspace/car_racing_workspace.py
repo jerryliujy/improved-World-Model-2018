@@ -9,10 +9,8 @@ import gymnasium as gym
 import cv2
 import matplotlib.pyplot as plt
 from omegaconf import OmegaConf
-from torch.utils.data import DataLoader
 from workspace.base_workspace import BaseWorkspace
-from datasets.datasets import CarRacingDataset, get_car_racing_loaders, get_car_racing_loader
-
+from datasets.dataloader import get_car_racing_loaders
 
 class CarRacingWorkspace(BaseWorkspace):
     def __init__(self, cfg: OmegaConf, output_dir=None):
@@ -56,7 +54,7 @@ class CarRacingWorkspace(BaseWorkspace):
         elif cfg.training.stage == 3:
             self.model_to_train = self.controller
         self.optimizer = hydra.utils.instantiate(
-            cfg.optimizer,
+            cfg.training.optimizer,
             params=self.model_to_train.parameters()
         )
         

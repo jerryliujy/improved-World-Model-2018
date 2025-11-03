@@ -6,11 +6,11 @@ workspace:
   _target_: workspace.car_racing_workspace.CarRacingWorkspace
 
 dataset:
-  train: car_racing_data.h5
+  train: outputs/data/car_racing_data.h5
   train_ratio: 0.7
   val_ratio: 0.15
   test_ratio: 0.15
-  to_grayscale: true
+  to_grayscale: false
   num_workers: 0
 
 training:

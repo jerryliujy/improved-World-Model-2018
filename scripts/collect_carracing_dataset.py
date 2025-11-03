@@ -6,6 +6,10 @@ from multiprocessing import Pool, cpu_count
 from PIL import Image
 import gc 
 import os
+import sys
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 from common.img_process import resize_obs
 
 def random_action(t):
