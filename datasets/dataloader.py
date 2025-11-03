@@ -5,7 +5,7 @@ from datasets.datasets import CarRacingDataset
 from common.img_process import preprocess_breakout_image
 
     
-def get_car_racing_loaders(
+def get_dataloaders(
     h5_path: str = 'car_racing_data.h5',
     batch_size: int = 32,
     train_ratio: float = 0.7,

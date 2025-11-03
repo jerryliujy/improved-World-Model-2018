@@ -40,6 +40,15 @@ class CarRacingRunner:
             num_episodes: number of episodes to run
             max_steps: max steps per episode
             render: whether to call env.render() each step
+            
+        Returns:
+            dict with episode results:
+            {
+                'episode_rewards': list of cumulative rewards,
+                'episode_steps': list of step counts,
+                'avg_reward': average reward,
+                'std_reward': std dev of rewards
+            }
         """
         env = self.env
 
@@ -50,6 +59,9 @@ class CarRacingRunner:
         vision.eval()
         predictor.eval()
         controller.eval()
+
+        episode_rewards = []
+        episode_steps = []
 
         for ep in range(num_episodes):
             obs, _ = env.reset()
@@ -117,6 +129,19 @@ class CarRacingRunner:
             if video_writer is not None:
                 video_writer.release()
 
+            episode_rewards.append(cumulative_reward)
+            episode_steps.append(step_count)
             print(f'Episode {ep+1} | Reward: {cumulative_reward:.2f} | Steps: {step_count}')
 
         env.close()
+        
+        # Calculate statistics
+        avg_reward = np.mean(episode_rewards)
+        std_reward = np.std(episode_rewards)
+        
+        return {
+            'episode_rewards': episode_rewards,
+            'episode_steps': episode_steps,
+            'avg_reward': avg_reward,
+            'std_reward': std_reward
+        }

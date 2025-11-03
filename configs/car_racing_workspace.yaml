@@ -38,14 +38,23 @@ training:
     lr: 0.001
     betas: [0.9, 0.999]
     eps: 1e-8
+  
+  # CMA-ES configuration for stage 3
+  cma_es:
+    max_generations: 100      
+    initial_sigma: 0.1
+    popsize: 16
+    num_rollouts: 5
+    max_steps: 1000
+    checkpoint_interval: 10
 
-# Vision model (VAE) configuration
+# Vision model configuration
 vision:
   _target_: models.vae.VAE
   image_channels: 3  # should be 1 if greyscale
   latent_dim: 32
 
-# Memory model (MDNRNN) configuration
+# Memory model configuration
 predictor:
   _target_: models.mdnrnn.MDNRNN
   latent_dim: 32
@@ -60,6 +69,10 @@ controller:
   state_dim: 288              # latent_dim(32) + hidden_dim(256)
   action_dim: 3
 
+# Evaluation configuration
 eval:
+  num_episodes: 5
+  max_steps: 1000
+  render: false
   save_video: true
   video_filename: car_racing_eval.avi

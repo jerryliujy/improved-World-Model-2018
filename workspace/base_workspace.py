@@ -8,6 +8,8 @@ from hydra.core.hydra_config import HydraConfig
 from omegaconf import OmegaConf
 import torch
 import matplotlib.pyplot as plt
+import cma
+from datasets.dataloader import get_dataloaders
 
 
 class BaseWorkspace:
@@ -24,6 +26,20 @@ class BaseWorkspace:
         # configure training state
         self.global_step = 0
         self.epoch = 0
+        
+        # configure data loader 
+        self.train_loader, self.val_loader, self.test_loader = get_dataloaders(
+            h5_path=cfg.dataset.train,
+            batch_size=cfg.training.batch_size,
+            train_ratio=cfg.dataset.train_ratio,
+            val_ratio=cfg.dataset.val_ratio,
+            test_ratio=cfg.dataset.test_ratio,
+            to_grayscale=cfg.dataset.to_grayscale,
+            num_workers=cfg.dataset.num_workers
+        )
+        
+        # configure env runner
+        self.env_runner = hydra.utils.instantiate(cfg.env_runner)
         
         # configure model
         self.vision = hydra.utils.instantiate(cfg.vision)
@@ -62,7 +78,70 @@ class BaseWorkspace:
         if output_dir is None:
             output_dir = HydraConfig.get().runtime.output_dir
         return output_dir
-
+    
+    def _save_checkpoint(self, epoch):
+        """Save model checkpoint."""
+        checkpoint_path = os.path.join(
+            self.cfg.training.checkpoint_dir,
+            f'stage_{self.cfg.training.stage}_epoch_{epoch + 1:04d}.pth'
+        )
+        torch.save(self.model_to_train.state_dict(), checkpoint_path)
+        print(f'Checkpoint saved: {checkpoint_path}')
+        
+    def _load_checkpoint(self, checkpoint_path):
+        """Load model checkpoint."""
+        self.model_to_train.load_state_dict(torch.load(checkpoint_path, map_location=self.device))
+        print(f'Checkpoint loaded from: {checkpoint_path}')
+    
+    def _prepare_batch(self, batch_data, device):
+        """
+        Prepare batch data based on training stage.
+        
+        Stage 1: Input is images, target is images
+        Stage 2: Input is (z, a), target is z_next
+        Stage 3: Input is (z, h), target is actions
+        
+        Returns:
+            dict with 'inputs' and 'targets' for model.loss()
+        """
+        stage = self.cfg.training.stage
+        
+        if stage == 1:
+            # VAE: images -> encoded images
+            images, _, _, _ = batch_data
+            images = images.to(device)
+            return {
+                'inputs': [images],
+                'targets': [images]
+            }
+        elif stage == 2:
+            # MDNRNN: (z, a) -> z_next distribution
+            # Note: This requires pre-encoded observations from VAE
+            # Placeholder implementation
+            images, actions, rewards, dones = batch_data
+            images = images.to(device)
+            actions = actions.to(device)
+            return {
+                'inputs': [images, actions],
+                'targets': [images]  # Target should be z_next after VAE encoding
+            }
+        elif stage == 3:
+            # Controller: (z, h) -> actions
+            # Note: This requires pre-encoded observations and RNN hidden states
+            # Placeholder implementation
+            images, actions, rewards, dones = batch_data
+            images = images.to(device)
+            actions = actions.to(device)
+            return {
+                'inputs': [images],
+                'targets': [actions]
+            }
+        else:
+            raise ValueError(f"Unknown training stage: {stage}")
+    
+    ###############################################
+    ###############################################
+    ## Unified training pipeline using DL method ##
     def train(self):
         """
         Unified training loop for all deep learning models (stage 1, 2, 3).
@@ -160,62 +239,6 @@ class BaseWorkspace:
         self._plot_losses(plot_save_dir)
         
 
-    def _prepare_batch(self, batch_data, device):
-        """
-        Prepare batch data based on training stage.
-        
-        Stage 1 (VAE): Input is images, target is images
-        Stage 2 (MDNRNN): Input is (z, a), target is z_next
-        Stage 3 (Controller): Input is (z, h), target is actions
-        
-        Returns:
-            dict with 'inputs' and 'targets' for model.loss()
-        """
-        stage = self.cfg.training.stage
-        
-        if stage == 1:
-            # VAE: images -> encoded images
-            images, _, _, _ = batch_data
-            images = images.to(device)
-            return {
-                'inputs': [images],
-                'targets': [images]
-            }
-        elif stage == 2:
-            # MDNRNN: (z, a) -> z_next distribution
-            # Note: This requires pre-encoded observations from VAE
-            # Placeholder implementation
-            images, actions, rewards, dones = batch_data
-            images = images.to(device)
-            actions = actions.to(device)
-            return {
-                'inputs': [images, actions],
-                'targets': [images]  # Target should be z_next after VAE encoding
-            }
-        elif stage == 3:
-            # Controller: (z, h) -> actions
-            # Note: This requires pre-encoded observations and RNN hidden states
-            # Placeholder implementation
-            images, actions, rewards, dones = batch_data
-            images = images.to(device)
-            actions = actions.to(device)
-            return {
-                'inputs': [images],
-                'targets': [actions]
-            }
-        else:
-            raise ValueError(f"Unknown training stage: {stage}")
-    
-    
-    def _save_checkpoint(self, epoch):
-        """Save model checkpoint."""
-        checkpoint_path = os.path.join(
-            self.cfg.training.checkpoint_dir,
-            f'stage_{self.cfg.training.stage}_epoch_{epoch + 1:04d}.pth'
-        )
-        torch.save(self.model_to_train.state_dict(), checkpoint_path)
-        print(f'Checkpoint saved: {checkpoint_path}')
-    
     
     def _plot_losses(self, save_dir='outputs/plots'):
         """
@@ -255,3 +278,311 @@ class BaseWorkspace:
             for i, (train_loss, val_loss) in enumerate(zip(self.train_losses, self.val_losses)):
                 writer.writerow([i + 1, train_loss, val_loss])
         print(f'Loss values saved to: {csv_path}')
+    ###############################################
+    ###############################################
+    
+
+    ###############################################
+    ###############################################
+    #### CMA-ES Training for Controller Model  ####
+    def train_cma_es(self):
+        """
+        Train controller using CMA-ES evolutionary strategy.
+        
+        This method evolves controller parameters to maximize reward in the environment.
+        Uses env_runner to evaluate each generation.
+        """
+        if self.cfg.training.stage != 3:
+            print("CMA-ES training is only for Stage 3 (Controller). Please set training.stage=3")
+            return
+        
+        # Load CMA-ES hyperparameters from config
+        cma_cfg = self.cfg.training.cma_es
+        initial_sigma = cma_cfg.initial_sigma
+        max_generations = cma_cfg.max_generations
+        popsize = cma_cfg.popsize
+        checkpoint_interval = cma_cfg.checkpoint_interval
+        num_rollouts = cma_cfg.num_rollouts
+        max_steps = cma_cfg.max_steps
+        
+        # Setup metrics tracking
+        metrics = {
+            'generation': [],
+            'best_reward': [],
+            'mean_reward': [],
+            'worst_reward': []
+        }
+        
+        # Create directory for checkpoints
+        checkpoint_dir = self.cfg.training.checkpoint_dir
+        os.makedirs(checkpoint_dir, exist_ok=True)
+
+        # Get initial controller parameters
+        controller = self.model_to_train
+        initial_params = torch.nn.utils.parameters_to_vector(
+            controller.parameters()).detach().cpu().numpy()
+
+        # Initialize CMA-ES optimizer
+        es = cma.CMAEvolutionStrategy(initial_params, initial_sigma, {'popsize': popsize})
+        
+        # Main training loop
+        for generation in range(max_generations):
+            # Generate population for this generation
+            solutions = es.ask()  
+
+            # Evaluate each solution multiple times and average
+            generation_rewards = []
+            for solution in solutions:
+                rewards_for_solution = []
+                for rollout in range(num_rollouts):
+                    # Load solution parameters into controller
+                    torch.nn.utils.vector_to_parameters(
+                        torch.tensor(solution, dtype=torch.float32, device=self.device),
+                        controller.parameters()
+                    )
+                    
+                    # Run evaluation
+                    total_reward = self._evaluate_controller(max_steps=max_steps)
+                    rewards_for_solution.append(total_reward)
+                
+                # Average reward for this solution
+                avg_reward = np.mean(rewards_for_solution)
+                generation_rewards.append(avg_reward)
+            
+            generation_rewards = np.array(generation_rewards)
+
+            # Update CMA-ES with rewards (negative because CMA-ES minimizes)
+            es.tell(solutions, [-r for r in generation_rewards])
+            
+            # Calculate and log training statistics
+            log = (f'Generation {generation + 1}/{max_generations} | '
+                f'Best Reward: {np.max(generation_rewards):.2f} | '
+                f'Avg Reward: {np.mean(generation_rewards):.2f} | '
+                f'Worst: {np.min(generation_rewards):.2f} | '
+                f'Sigma: {es.sigma:.4f}')
+            print(log)
+
+            # Update metrics
+            metrics['generation'].append(generation + 1)
+            metrics['best_reward'].append(float(np.max(generation_rewards)))
+            metrics['worst_reward'].append(float(np.min(generation_rewards)))
+            metrics['mean_reward'].append(float(np.mean(generation_rewards)))
+                    
+            # Save checkpoint at intervals
+            if (generation + 1) % checkpoint_interval == 0:
+                torch.nn.utils.vector_to_parameters(
+                    torch.tensor(es.result.xbest, dtype=torch.float32, device=self.device),
+                    controller.parameters()
+                )
+                checkpoint_path = os.path.join(checkpoint_dir, f'stage_3_cma_gen_{generation + 1:04d}.pth')
+                torch.save(controller.state_dict(), checkpoint_path)
+                print(f'Checkpoint saved: {checkpoint_path}')
+        
+        # Save final model
+        torch.nn.utils.vector_to_parameters(
+            torch.tensor(es.result.xbest, dtype=torch.float32, device=self.device),
+            controller.parameters()
+        )
+        final_path = os.path.join(checkpoint_dir, 'stage_3_final.pth')
+        torch.save(controller.state_dict(), final_path)
+        print(f'Final model saved to {final_path}')
+        
+        return es, metrics
+    
+    
+    def _evaluate_controller(self, max_steps: int = 1000, num_episodes: int = 1):
+        """
+        Evaluate controller using env_runner.
+        
+        Args:
+            max_steps: maximum steps per episode
+            num_episodes: number of episodes to average over
+            
+        Returns:
+            average reward across episodes
+        """
+        results = self.env_runner.run(
+            vision=self.vision,
+            predictor=self.predictor,
+            controller=self.model_to_train,
+            num_episodes=num_episodes,
+            max_steps=max_steps,
+            render=False
+        )
+        
+        return results['avg_reward']
+    ###############################################
+    ###############################################
+    
+    
+    ###############################################
+    ###############################################
+    ## Unified evaluation pipeline in simulation ##
+    def eval(self,
+             num_episodes: int = None,
+             max_steps: int = None,
+             render: bool = None):
+        """
+        Evaluate the full model (vision + predictor + controller) in the environment.
+        
+        This method:
+        1. Runs rollouts using env_runner
+        2. Collects episode rewards and statistics
+        3. Saves results to CSV file
+        4. Generates evaluation report
+        
+        Args:
+            num_episodes: Number of episodes to run (uses config if None)
+            max_steps: Maximum steps per episode (uses config if None)
+            render: Whether to render the environment (uses config if None)
+            
+        Returns:
+            dict with evaluation results:
+            {
+                'avg_reward': float,
+                'std_reward': float,
+                'episode_rewards': list,
+                'episode_steps': list,
+                'results_file': str (path to CSV file)
+            }
+        """
+        import csv
+        
+        # Load parameters from config if not provided
+        eval_cfg = self.cfg.eval
+        num_episodes = num_episodes if num_episodes is not None else eval_cfg.get('num_episodes', 5)
+        max_steps = max_steps if max_steps is not None else eval_cfg.get('max_steps', 1000)
+        render = render if render is not None else eval_cfg.get('render', False)
+        
+        # Create eval output directory
+        eval_dir = os.path.join(self.output_dir, 'eval_results')
+        os.makedirs(eval_dir, exist_ok=True)
+        
+        print(f'\n{"="*60}')
+        print(f'Starting Evaluation | Stage: {self.cfg.training.stage}')
+        print(f'Num Episodes: {num_episodes} | Max Steps: {max_steps}')
+        print(f'{"="*60}\n')
+        
+        # Run evaluation
+        results = self.env_runner.run(
+            vision=self.vision,
+            predictor=self.predictor,
+            controller=self.controller,
+            num_episodes=num_episodes,
+            max_steps=max_steps,
+            render=render
+        )
+        
+        # Extract results
+        episode_rewards = results['episode_rewards']
+        episode_steps = results['episode_steps']
+        avg_reward = results['avg_reward']
+        std_reward = results['std_reward']
+        
+        # Save results to CSV file
+        csv_filename = f'stage_{self.cfg.training.stage}_eval_results.csv'
+        csv_path = os.path.join(eval_dir, csv_filename)
+        
+        with open(csv_path, 'w', newline='') as f:
+            writer = csv.writer(f)
+            writer.writerow(['Episode', 'Reward', 'Steps'])
+            for ep, (reward, steps) in enumerate(zip(episode_rewards, episode_steps), 1):
+                writer.writerow([ep, f'{reward:.2f}', steps])
+            
+            # Write summary statistics
+            writer.writerow([])
+            writer.writerow(['Summary Statistics', ''])
+            writer.writerow(['Metric', 'Value'])
+            writer.writerow(['Average Reward', f'{avg_reward:.2f}'])
+            writer.writerow(['Std Dev Reward', f'{std_reward:.2f}'])
+            writer.writerow(['Min Reward', f'{np.min(episode_rewards):.2f}'])
+            writer.writerow(['Max Reward', f'{np.max(episode_rewards):.2f}'])
+            writer.writerow(['Total Episodes', num_episodes])
+            writer.writerow(['Avg Steps per Episode', f'{np.mean(episode_steps):.1f}'])
+        
+        print(f'\n{"="*60}')
+        print(f'Evaluation Results')
+        print(f'{"="*60}')
+        print(f'Average Reward: {avg_reward:.2f} ± {std_reward:.2f}')
+        print(f'Min Reward: {np.min(episode_rewards):.2f}')
+        print(f'Max Reward: {np.max(episode_rewards):.2f}')
+        print(f'Avg Steps per Episode: {np.mean(episode_steps):.1f}')
+        print(f'Results saved to: {csv_path}')
+        print(f'{"="*60}\n')
+        
+        # Generate evaluation report text file
+        report_path = os.path.join(eval_dir, f'stage_{self.cfg.training.stage}_eval_report.txt')
+        with open(report_path, 'w') as f:
+            f.write(f'Evaluation Report - Stage {self.cfg.training.stage}\n')
+            f.write(f'{"="*60}\n\n')
+            
+            f.write('Configuration:\n')
+            f.write(f'  Number of Episodes: {num_episodes}\n')
+            f.write(f'  Max Steps per Episode: {max_steps}\n')
+            f.write(f'  Render: {render}\n\n')
+            
+            f.write('Results:\n')
+            f.write(f'  Average Reward: {avg_reward:.2f}\n')
+            f.write(f'  Std Dev Reward: {std_reward:.2f}\n')
+            f.write(f'  Min Reward: {np.min(episode_rewards):.2f}\n')
+            f.write(f'  Max Reward: {np.max(episode_rewards):.2f}\n')
+            f.write(f'  Average Steps: {np.mean(episode_steps):.1f}\n\n')
+            
+            f.write('Episode Details:\n')
+            for ep, (reward, steps) in enumerate(zip(episode_rewards, episode_steps), 1):
+                f.write(f'  Episode {ep}: Reward={reward:.2f}, Steps={steps}\n')
+        
+        print(f'Report saved to: {report_path}')
+        
+        # Plot evaluation results if multiple episodes
+        if num_episodes > 1:
+            self._plot_eval_results(episode_rewards, episode_steps, eval_dir)
+        
+        return {
+            'avg_reward': avg_reward,
+            'std_reward': std_reward,
+            'episode_rewards': episode_rewards,
+            'episode_steps': episode_steps,
+            'results_file': csv_path,
+            'report_file': report_path
+        }
+    
+    def _plot_eval_results(self, episode_rewards, episode_steps, save_dir):
+        """
+        Plot evaluation results.
+        
+        Args:
+            episode_rewards: List of rewards for each episode
+            episode_steps: List of steps for each episode
+            save_dir: Directory to save plots
+        """
+        fig, axes = plt.subplots(1, 2, figsize=(14, 5))
+        
+        episodes = np.arange(1, len(episode_rewards) + 1)
+        
+        # Plot 1: Rewards per episode
+        axes[0].bar(episodes, episode_rewards, color='steelblue', alpha=0.7)
+        axes[0].axhline(y=np.mean(episode_rewards), color='r', linestyle='--', 
+                        label=f'Mean: {np.mean(episode_rewards):.2f}')
+        axes[0].set_xlabel('Episode', fontsize=12)
+        axes[0].set_ylabel('Reward', fontsize=12)
+        axes[0].set_title('Reward per Episode', fontsize=13)
+        axes[0].legend()
+        axes[0].grid(True, alpha=0.3)
+        
+        # Plot 2: Steps per episode
+        axes[1].bar(episodes, episode_steps, color='coral', alpha=0.7)
+        axes[1].axhline(y=np.mean(episode_steps), color='r', linestyle='--',
+                        label=f'Mean: {np.mean(episode_steps):.1f}')
+        axes[1].set_xlabel('Episode', fontsize=12)
+        axes[1].set_ylabel('Steps', fontsize=12)
+        axes[1].set_title('Steps per Episode', fontsize=13)
+        axes[1].legend()
+        axes[1].grid(True, alpha=0.3)
+        
+        # Save figure
+        stage = self.cfg.training.stage
+        plot_path = os.path.join(save_dir, f'stage_{stage}_eval_plots.png')
+        fig.savefig(plot_path, dpi=300, bbox_inches='tight')
+        print(f'Plots saved to: {plot_path}')
+        plt.close(fig)
