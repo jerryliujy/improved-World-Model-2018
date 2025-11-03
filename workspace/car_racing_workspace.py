@@ -24,34 +24,9 @@ class CarRacingWorkspace(BaseWorkspace):
             num_workers=cfg.dataset.num_workers
         )
 
-        # configure model
-        self.vision = hydra.utils.instantiate(cfg.vision)
-        self.predictor = hydra.utils.instantiate(cfg.predictor)
-        self.controller = hydra.utils.instantiate(cfg.controller)
-        
-        # configure training setting
-        self.model_to_train = None
-        if cfg.training.stage == 1:
-            self.model_to_train = self.vision
-        elif cfg.training.stage == 2:
-            self.model_to_train = self.predictor
-        elif cfg.training.stage == 3:
-            self.model_to_train = self.controller
-        self.optimizer = hydra.utils.instantiate(
-            cfg.training.optimizer,
-            params=self.model_to_train.parameters()
-        )
-        
-        if cfg.training.train_method == 'cma_es':
-            self.train = self.train_cma_es
-            
-        self.device = cfg.device
+        # configure env runner
+        self.env_runner = hydra.utils.instantiate(cfg.env_runner)
 
-        # configure env
-        env = gym.make('CarRacing-v3', render_mode='rgb_array')
-        self.env = env
-        
-        
     def train_cma_es(self, 
                      controller_class, 
                      memory, 

@@ -39,11 +39,6 @@ class RNN(nn.Module):
         outs_rnn, h = self.lstm(x, h)
         return outs_rnn, h
     
-    def init_hidden(self, batch_size, device='cpu'):
-        """Initialize hidden state with zeros"""
-        return (torch.zeros(1, batch_size, self.hidden_dim).to(device),
-                torch.zeros(1, batch_size, self.hidden_dim).to(device))
-    
     
 class MDN(nn.Module):
     """

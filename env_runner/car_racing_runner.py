@@ -2,11 +2,10 @@ import gymnasium as gym
 import torch
 import cv2
 import numpy as np
-from env_runner.base_runner import BaseRunner
 from common.img_process import preprocess_carracing_image
 
 
-class CarRacingRunner(BaseRunner):
+class CarRacingRunner:
     def __init__(
         self,
         env_name='CarRacing-v3',
@@ -14,9 +13,8 @@ class CarRacingRunner(BaseRunner):
         video_filename='car_racing_eval.mp4',
         resolution=(96, 96),
         device: str = None,
-        to_grayscale: bool = True,
+        to_grayscale: bool = False,
     ):
-        super().__init__()
         self.env_name = env_name
         self.save_video = save_video
         self.video_filename = video_filename
