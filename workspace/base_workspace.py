@@ -10,6 +10,7 @@ import torch
 import matplotlib.pyplot as plt
 import cma
 from datasets.dataloader import get_dataloaders
+from common.model_loader import save_checkpoint
 
 
 class BaseWorkspace:
@@ -79,19 +80,6 @@ class BaseWorkspace:
             output_dir = HydraConfig.get().runtime.output_dir
         return output_dir
     
-    def _save_checkpoint(self, epoch):
-        """Save model checkpoint."""
-        checkpoint_path = os.path.join(
-            self.cfg.training.checkpoint_dir,
-            f'stage_{self.cfg.training.stage}_epoch_{epoch + 1:04d}.pth'
-        )
-        torch.save(self.model_to_train.state_dict(), checkpoint_path)
-        print(f'Checkpoint saved: {checkpoint_path}')
-        
-    def _load_checkpoint(self, checkpoint_path):
-        """Load model checkpoint."""
-        self.model_to_train.load_state_dict(torch.load(checkpoint_path, map_location=self.device))
-        print(f'Checkpoint loaded from: {checkpoint_path}')
     
     def _prepare_batch(self, batch_data, device):
         """
@@ -225,15 +213,10 @@ class BaseWorkspace:
             
             # Save checkpoint periodically
             if (epoch + 1) % save_interval == 0:
-                self._save_checkpoint(epoch)
+                save_checkpoint(model, self.cfg.training.checkpoint_dir, self.cfg.training.stage, epoch)
         
         # Save final model
-        final_checkpoint_path = os.path.join(
-            self.cfg.training.checkpoint_dir, 
-            f'stage_{self.cfg.training.stage}_final.pth'
-        )
-        torch.save(model.state_dict(), final_checkpoint_path)
-        print(f'Final model saved to {final_checkpoint_path}')
+        save_checkpoint(model, self.cfg.training.checkpoint_dir, self.cfg.training.stage, epoch)
         
         # Plot training curves
         self._plot_losses(plot_save_dir)
