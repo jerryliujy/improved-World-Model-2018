@@ -3,7 +3,6 @@ import numpy as np
 import h5py
 from tqdm import tqdm
 from multiprocessing import Pool, cpu_count
-from PIL import Image
 import gc 
 import os
 import sys
@@ -236,11 +235,10 @@ def merge_episode_files(episodes_dir='temp_episodes_data',
     
     
 if __name__ == "__main__":
-    # Example usage:
-    collect_data(env_name='CarRacing-v3', num_episodes=50, max_steps=1000, 
+    collect_data(env_name='CarRacing-v3', num_episodes=128, max_steps=1000, 
                  output_dir='temp_episodes_data', num_workers=4)
     
-    merge_episode_files(episodes_dir='temp_episodes_data',
+    merge_episode_files(episodes_dir='outputs/data',
                         output_file='car_racing_data.h5', 
                         env_name='CarRacing-v3',
                         num_max_steps=1000)

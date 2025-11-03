@@ -78,7 +78,7 @@ class CarRacingDataset(Dataset):
         # Convert action, reward, and done to tensors
         action = torch.tensor(action, dtype=torch.float32)
         reward = torch.tensor(reward, dtype=torch.float32)
-        done = torch.tensor(done, dtype=torch.bool)
+        done = torch.tensor(done, dtype=torch.float32)
         
         return image, action, reward, done
     

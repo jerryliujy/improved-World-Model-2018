@@ -97,7 +97,7 @@ class BaseWorkspace:
         if stage == 1:
             # VAE: images -> encoded images
             images, _, _, _ = batch_data
-            images = images.to(device)
+            images = images.to(device).squeeze()
             return {
                 'inputs': [images],
                 'targets': [images]
@@ -107,8 +107,8 @@ class BaseWorkspace:
             # Note: This requires pre-encoded observations from VAE
             # Placeholder implementation
             images, actions, rewards, dones = batch_data
-            images = images.to(device)
-            actions = actions.to(device)
+            images = images.to(device).squeeze()
+            actions = actions.to(device).squeeze()
             return {
                 'inputs': [images, actions],
                 'targets': [images]  # Target should be z_next after VAE encoding

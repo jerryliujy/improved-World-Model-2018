@@ -3,7 +3,7 @@ name: car_racing_workspace
 device: cuda
 
 workspace:
-  _target_: workspace.car_racing_workspace.CarRacingWorkspace
+  _target_: workspace.base_workspace.BaseWorkspace
 
 dataset:
   train: outputs/data/car_racing_data.h5
