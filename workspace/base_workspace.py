@@ -56,7 +56,7 @@ class BaseWorkspace:
         elif cfg.training.stage == 3:
             self.model_to_train = self.controller
         self.optimizer = hydra.utils.instantiate(
-            cfg.optimizer,
+            cfg.training.optimizer,
             params=self.model_to_train.parameters()
         )
         
@@ -179,7 +179,7 @@ class BaseWorkspace:
                     model_output = model(*batch_data['inputs'])
                     
                     # Loss computation: pass output to model.loss()
-                    loss = model.loss(model_output, *batch_data['targets'])
+                    loss = model.loss(*model_output, *batch_data['targets'])
                     
                     # Backward pass and optimization
                     self.optimizer.zero_grad()
@@ -200,7 +200,7 @@ class BaseWorkspace:
                     for batch_data in pbar:
                         batch_data = self._prepare_batch(batch_data, device)
                         model_output = model(*batch_data['inputs'])
-                        loss = model.loss(model_output, *batch_data['targets'])
+                        loss = model.loss(*model_output, *batch_data['targets'])
                         val_epoch_loss += loss.item()
                         pbar.set_postfix({'loss': f"{loss.item():.6f}"})
             
