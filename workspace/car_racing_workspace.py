@@ -8,10 +8,6 @@ import gymnasium as gym
 from omegaconf import OmegaConf
 from workspace.base_workspace import BaseWorkspace
 from datasets.dataloader import get_car_racing_loaders
-<<<<<<< HEAD
-=======
-
->>>>>>> 1c81e748a641fd7ff39d53dae50618cfbcc61932
 
 class CarRacingWorkspace(BaseWorkspace):
     def __init__(self, cfg: OmegaConf, output_dir=None):
@@ -28,7 +24,6 @@ class CarRacingWorkspace(BaseWorkspace):
             num_workers=cfg.dataset.num_workers
         )
 
-<<<<<<< HEAD
         # configure model
         self.vision = hydra.utils.instantiate(cfg.vision)
         self.predictor = hydra.utils.instantiate(cfg.predictor)
@@ -52,8 +47,6 @@ class CarRacingWorkspace(BaseWorkspace):
             
         self.device = cfg.device
 
-=======
->>>>>>> 1c81e748a641fd7ff39d53dae50618cfbcc61932
         # configure env
         env = gym.make('CarRacing-v3', render_mode='rgb_array')
         self.env = env
