@@ -51,8 +51,17 @@ class VAE(nn.Module):
         
 
     def encode(self, x):
+        """
+        Encode image to latent vector z.
+        
+        Returns:
+            z: latent vector (batch_size, latent_dim)
+        """
         h = self.encoder(x)
-        return self.fc_mu(h), self.fc_logvar(h)
+        mu = self.fc_mu(h)
+        logvar = self.fc_logvar(h)
+        z = self.reparameterize(mu, logvar)
+        return z
     
     def reparameterize(self, mu, logvar):
         std = torch.exp(0.5 * logvar)
@@ -64,24 +73,12 @@ class VAE(nn.Module):
         return self.decoder(h)
     
     def forward(self, x):
-        mu, logvar = self.encode(x)
+        h = self.encoder(x)
+        mu, logvar = self.fc_mu(h), self.fc_logvar(h)
         z = self.reparameterize(mu, logvar)
         return self.decode(z), mu, logvar
     
-    def loss(self, recon, x, mu, logvar, beta=2.0):
-        """
-        Compute VAE loss (reconstruction + KL divergence).
-        
-        Args:
-            recon: Reconstructed images from decoder
-            x: Original input images
-            mu: Mean of latent distribution
-            logvar: Log variance of latent distribution
-            beta: Weight for KL divergence term (default: 2.0)
-            
-        Returns:
-            total_loss: Scalar loss value
-        """
+    def loss(self, recon, mu, logvar, x, beta=2.0):
         batch_size = x.size(0)
 
         recon_loss = nn.functional.mse_loss(recon, x, reduction='sum') / batch_size

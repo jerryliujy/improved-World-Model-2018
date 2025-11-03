@@ -46,12 +46,15 @@ class Controller(nn.Module):
         Get action for a given state without gradient computation.
         
         Args:
-            state (torch.Tensor): Current state (z + h)
+            state (torch.Tensor): Current state (z + h), shape (state_dim,) or (batch, state_dim)
             
         Returns:
-            torch.Tensor: Action to take
+            torch.Tensor: Action to take, shape (action_dim,)
         """
-        with torch.no_grad():  
+        with torch.no_grad():
+            # Handle 1D input (single step)
+            if state.dim() == 1:
+                state = state.unsqueeze(0)
             action = self.forward(state)
         return action.squeeze()
     
