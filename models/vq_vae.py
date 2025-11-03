@@ -65,21 +65,8 @@ class VQVAE(nn.Module):
     def forward(self, x):
         z = self.encode(x)
         return self.decode(z)
-    
-    def loss(self, recon, x, mu, logvar, beta=2.0):
-        """
-        Compute VQ-VAE loss (reconstruction + KL divergence).
-        
-        Args:
-            recon: Reconstructed images from decoder
-            x: Original input images
-            mu: Mean of latent distribution (for VQ-VAE compatibility)
-            logvar: Log variance of latent distribution (for VQ-VAE compatibility)
-            beta: Weight for KL divergence term (default: 2.0)
-            
-        Returns:
-            total_loss: Scalar loss value
-        """
+
+    def loss(self, recon, mu, logvar, x, beta=2.0):
         batch_size = x.size(0)
 
         recon_loss = nn.functional.mse_loss(recon, x, reduction='sum') / batch_size
