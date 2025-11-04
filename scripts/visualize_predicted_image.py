@@ -64,11 +64,12 @@ if __name__ == "__main__":
     images, actions, _, _, next_images = next(iter(dataloader))
     images = images.to(device)
     actions = actions.to(device)
+    z = vision.encode(images).unsqueeze(1)  # [batch, 1, latent_dim]
 
     with torch.no_grad():
-        pi, mu, sigma, _ = predictor(images, actions)
+        pi, mu, sigma, _ = predictor(z, actions.unsqueeze(1))
         z_next = sample_mdn(pi, mu, sigma)
-        reconstructed = vision.decode(z_next.squeeze(0))
+        reconstructed = vision.decode(z_next.squeeze(1))
 
     
     indices = torch.randperm(images.size(0))[:n]  # Select random images
