@@ -236,7 +236,7 @@ def merge_episode_files(episodes_dir='temp_episodes_data',
     
     
 if __name__ == "__main__":
-    collect_data(env_name='CarRacing-v3', num_episodes=256, max_steps=1000, 
+    collect_data(env_name='CarRacing-v3', num_episodes=192, max_steps=1000, 
                  output_dir='temp_episodes_data', num_workers=8)
     
     merge_episode_files(episodes_dir='temp_episodes_data',

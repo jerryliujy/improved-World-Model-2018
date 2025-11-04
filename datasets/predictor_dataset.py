@@ -34,14 +34,33 @@ class PredictorDataset(Dataset):
         # Open the HDF5 file to retrieve dataset dimensions
         with h5py.File(self.h5_path, 'r') as h5f:
             self.total_episodes = h5f['images'].shape[0]
-            self.max_steps = h5f['images'].shape[1]
         
-        self.total_frames = self.total_episodes * self.max_steps
         self.h5_file = None  # Will be opened on first access
+        self.z_encoded = []
+
+    def preencode_images(self, vision_model, device='cuda'):
+        """Pre-encode all images to z and load all actions"""
+        with h5py.File(self.h5_path, 'r') as h5f:
+            with torch.no_grad():
+                for episode_idx in range(self.total_episodes):
+                    images = h5f['images'][episode_idx]  # [steps, H, W, C]
+                    
+                    # Preprocess and encode
+                    img_tensors = torch.stack([
+                        preprocess_carracing_image(img, to_grayscale=self.to_grayscale)
+                        for img in images
+                    ])
+                    img_tensors = img_tensors.to(device)
+                    vision_model = vision_model.to(device)
+                    
+                    # Encode to z
+                    z = vision_model.encode(img_tensors)  # [steps, latent_dim]
+                    self.z_encoded.append(z.cpu())
     
+
     def __len__(self) -> int:
         """Return the total number of frames in the dataset."""
-        return self.total_frames
+        return self.total_episodes
     
     def __getitem__(self, idx: int) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
         """
@@ -50,21 +69,20 @@ class PredictorDataset(Dataset):
         if self.h5_file is None:
             self.h5_file = h5py.File(self.h5_path, 'r')
         
-        images = self.h5_file['images'][idx]
+        z_encoded = self.z_encoded[idx]
         action = self.h5_file['actions'][idx]
         reward = self.h5_file['rewards'][idx]
         done = self.h5_file['dones'][idx]
         
-        images = torch.stack([preprocess_carracing_image(image) for image in images])
-        next_images = images[1:]
-        images = images[:-1]
+        next_z = z_encoded[1:]
+        z = z_encoded[:-1]
         
         # Convert action, reward, and done to tensors
-        action = torch.tensor(action, dtype=torch.float32)
-        reward = torch.tensor(reward, dtype=torch.float32)
-        done = torch.tensor(done, dtype=torch.float32)
+        action = torch.tensor(action[:-1], dtype=torch.float32)
+        reward = torch.tensor(reward[:-1], dtype=torch.float32)
+        done = torch.tensor(done[:-1], dtype=torch.float32)
         
-        return images, action, reward, done, next_images
+        return z, action, reward, done, next_z
     
     def __del__(self):
         """Ensure the HDF5 file is closed when the dataset is deleted."""

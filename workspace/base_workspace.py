@@ -10,6 +10,7 @@ import torch
 import matplotlib.pyplot as plt
 import cma
 from datasets.dataloader import get_dataloaders
+from datasets.predictor_dataset import PredictorDataset
 from common.model_loader import save_checkpoint, load_checkpoint
 
 
@@ -27,17 +28,6 @@ class BaseWorkspace:
         # configure training state
         self.global_step = 0
         self.epoch = 0
-        
-        # configure data loader 
-        self.train_loader, self.val_loader, self.test_loader = get_dataloaders(
-            h5_path=cfg.dataset.train,
-            batch_size=cfg.training.batch_size,
-            train_ratio=cfg.dataset.train_ratio,
-            val_ratio=cfg.dataset.val_ratio,
-            test_ratio=cfg.dataset.test_ratio,
-            to_grayscale=cfg.dataset.to_grayscale,
-            num_workers=cfg.dataset.num_workers
-        )
         
         # configure env runner
         self.env_runner = hydra.utils.instantiate(cfg.env_runner)
@@ -72,13 +62,26 @@ class BaseWorkspace:
         
         self.device = cfg.device
         
-        # configure eval
-        self.save_video = cfg.eval.save_video
-        self.video_filename = cfg.eval.video_filename
-
-        # Initialize loss tracking for plotting
+        # initialize loss tracking for plotting
         self.train_losses = []
         self.val_losses = []
+        
+        # configure data loader 
+        dataset = hydra.utils.instantiate(cfg.dataset)
+        if cfg.training.stage == 2:
+            # encode images in the dataset
+            assert(isinstance(dataset, PredictorDataset) and cfg.training.vision_resume)
+            dataset.preencode_images(self.vision, device=cfg.device)
+            
+        self.train_loader, self.val_loader, self.test_loader = get_dataloaders(
+            dataset,
+            batch_size=cfg.training.batch_size,
+            train_ratio=cfg.dataloader.train_ratio,
+            val_ratio=cfg.dataloader.val_ratio,
+            test_ratio=cfg.dataloader.test_ratio,
+            num_workers=cfg.dataloader.num_workers
+        )
+
 
     @property
     def output_dir(self):
@@ -103,8 +106,7 @@ class BaseWorkspace:
         
         if stage == 1:
             # Stage 1 should use vision dataset
-            # If using the wrong dataset, program will run into error when batch_data is unpacked
-            images, _, _, _  = batch_data
+            images, _, _, _, _  = batch_data
             images = images.to(device)
             return {
                 'inputs': [images],
@@ -112,13 +114,9 @@ class BaseWorkspace:
             }
         elif stage == 2:
             # Stage 2 should use predictor dataset
-            images, actions, _, _, next_images = batch_data
-            images = images.to(device)
-            next_images = next_images.to(device)
-            vision = self.vision.to(device)
-            vision.eval()
-            z = vision.encode(images) 
-            next_z = vision.encode(next_images)
+            z, actions, _, _, next_z = batch_data
+            z = z.to(device)
+            next_z = next_z.to(device) 
             actions = actions.to(device)
             return {
                 'inputs': [z, actions],

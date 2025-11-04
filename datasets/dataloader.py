@@ -1,17 +1,15 @@
 import torch
 from torch.utils.data import DataLoader, Subset
 from typing import Literal, Tuple
-from datasets.vision_datasets import CarRacingDataset
 from common.img_process import preprocess_breakout_image
 
     
 def get_dataloaders(
-    h5_path: str = 'car_racing_data.h5',
+    dataset,
     batch_size: int = 32,
     train_ratio: float = 0.7,
     val_ratio: float = 0.15,
     test_ratio: float = 0.15,
-    to_grayscale: bool = True,
     num_workers: int = 0,
     shuffle_train: bool = True
 ) -> Tuple[DataLoader, DataLoader, DataLoader]:
@@ -38,14 +36,10 @@ def get_dataloaders(
     assert abs(train_ratio + val_ratio + test_ratio - 1.0) < 1e-6, \
         "train_ratio + val_ratio + test_ratio must equal 1.0"
     
-    # Create a SINGLE dataset (no splitting here)
-    dataset = CarRacingDataset(h5_path=h5_path, to_grayscale=to_grayscale)
-
     total_frames = len(dataset)
     
     train_size = int(total_frames * train_ratio)
     val_size = int(total_frames * val_ratio)
-    test_size = total_frames - train_size - val_size
     
     train_indices = list(range(0, train_size))
     val_indices = list(range(train_size, train_size + val_size))

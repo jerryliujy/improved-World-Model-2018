@@ -152,25 +152,31 @@ def sample_mdn(pi, mu, sigma):
     Sample a latent vector from the mixture distribution. Used in test time.
     
     Args:
-        pi: Mixture weights [1, 1, num_gaussians]
-        mu: Gaussian means [1, 1, num_gaussians, latent_dim]
-        sigma: Gaussian std devs [1, 1, num_gaussians, latent_dim]
+        pi: Mixture weights [batch_size, seq_len, num_gaussians]
+        mu: Gaussian means [batch_size, seq_len, num_gaussians, latent_dim]
+        sigma: Gaussian std devs [batch_size, seq_len, num_gaussians, latent_dim]
         
     Returns:
-        z: Sampled latent vector [1, 1, latent_dim]
+        z: Sampled latent vector [batch_size, seq_len, latent_dim]
     """
-    # Select a Gaussian component based on mixture weights
-    component_index = torch.multinomial(pi.view(-1), 1).item()  
-
-    # Get the mean and std dev for the selected component
-    selected_mu = mu[0, 0, component_index]   
-    selected_sigma = sigma[0, 0, component_index]  
-
-    # Sample from the Gaussian distribution
-    epsilon = torch.randn(selected_mu.size(), device=mu.device)
+    batch_size, seq_len, num_gaussians, latent_dim = mu.shape
+    
+    # select a gaussian index for batch*seq items
+    pi_flat = pi.view(-1, num_gaussians)  # [batch*seq, num_gaussians]
+    component_indices = torch.multinomial(pi_flat, num_samples=1).squeeze(-1)  # [batch*seq]
+    component_indices = component_indices.view(batch_size, seq_len)  # [batch, seq]
+    
+    # get correspoding mu and sigma
+    batch_indices = torch.arange(batch_size, device=mu.device).view(batch_size, 1).expand(batch_size, seq_len)
+    seq_indices = torch.arange(seq_len, device=mu.device).view(1, seq_len).expand(batch_size, seq_len)
+    selected_mu = mu[batch_indices, seq_indices, component_indices]  # [batch, seq, latent_dim]
+    selected_sigma = sigma[batch_indices, seq_indices, component_indices]  # [batch, seq, latent_dim]
+    
+    # sample from gaussian distribution
+    epsilon = torch.randn_like(selected_mu)  # [batch, seq, latent_dim]
     z = selected_mu + selected_sigma * epsilon
-
-    return z.unsqueeze(0).unsqueeze(0)
+    
+    return z
 
 
 def gaussian_nll_loss(pi, mu, sigma, z_next):

@@ -10,7 +10,7 @@ from common.model_loader import load_checkpoint
 from models.vae import VAE
 from models.vq_vae import VQVAE
 from models.mdnrnn import MDNRNN, sample_mdn
-from datasets.vision_datasets import VisionDataset
+from datasets.vision_dataset import VisionDataset
 
 def plot_images(original, reconstructed, n=4, save_path='outputs/imgs/predicted_images.png'):
     fig, axes = plt.subplots(2, n, figsize=(12, 7))
@@ -60,7 +60,7 @@ if __name__ == "__main__":
         num_workers=0
     )
     
-    images, actions, _, _, next_images = next(iter(dataloader))
+    images, actions, _, _, next_images  = next(iter(dataloader))
     images = images.to(device)
     actions = actions.to(device).unsqueeze(1)
     z = vision.encode(images).unsqueeze(1)
