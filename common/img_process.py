@@ -17,11 +17,8 @@ def resize_obs(image, target_size=(96, 96)):
     Returns:
         numpy.ndarray: Processed image of shape (96, 96, 3) with uint8 dtype
     """
-    # Remove bottom info bar (last 12 pixels from CarRacing-v2)
-    image_cropped = image[:-12, :, :]
-    
     # Convert to PIL Image
-    img = Image.fromarray(image_cropped)
+    img = Image.fromarray(image)
     
     # High-quality downsampling to target size
     img = img.resize(target_size, Image.Resampling.LANCZOS)
@@ -43,7 +40,9 @@ def preprocess_carracing_image(image, target_size=(96, 96), to_grayscale=True):
             - If to_grayscale=True: shape (96, 96), dtype uint8, grayscale
             - If to_grayscale=False: shape (96, 96, 3), dtype uint8, RGB
     """
-    # Step 1: Crop bottom info bar and resize
+    # Remove bottom info bar (last 12 pixels from CarRacing-v2)
+    image = image[:-12, :, :]
+
     processed = resize_obs(image, target_size)
     
     # Step 2: Convert to grayscale if requested
@@ -74,11 +73,7 @@ def preprocess_breakout_image(image: np.ndarray) -> torch.Tensor:
     # Typical Atari image is 210x160, crop top 20 pixels and bottom 20 pixels
     cropped = image[20:200, :, :]
     
-    # Convert to PIL Image
-    img_pil = Image.fromarray(cropped)
-    
-    # Downsampling to 96x96
-    img_pil = img_pil.resize((96, 96), Image.Resampling.LANCZOS)
+    img_pil = resize_obs(cropped)
     
     # Convert to grayscale (1 channel)
     img_gray = img_pil.convert('L')

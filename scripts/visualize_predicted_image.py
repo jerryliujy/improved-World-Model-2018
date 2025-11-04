@@ -5,7 +5,6 @@ import os
 from torch.utils.data import DataLoader
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from common.img_process import preprocess_carracing_image
 
 from common.model_loader import load_checkpoint
 from models.vae import VAE
@@ -13,7 +12,7 @@ from models.vq_vae import VQVAE
 from models.mdnrnn import MDNRNN, sample_mdn
 from datasets.datasets import CarRacingDataset
 
-def plot_images(original, reconstructed, n=4, save_path='outputs/imgs/reconstructed_images.png'):
+def plot_images(original, reconstructed, n=4, save_path='outputs/imgs/predicted_images.png'):
     fig, axes = plt.subplots(2, n, figsize=(12, 7))
     
     for i in range(n):

@@ -103,8 +103,6 @@ class MDNRNN(nn.Module):
         hidden_dim: Dimension of the RNN hidden state
         num_gaussians: Number of Gaussian components in the mixture
         num_layers: Number of LSTM layers
-        resume: Whether to resume from a checkpoint
-        path: Path to the checkpoint file
     """
     def __init__(self, latent_dim, action_dim, hidden_dim, num_gaussians, num_layers=1):
         super(MDNRNN, self).__init__()
@@ -151,15 +149,15 @@ class MDNRNN(nn.Module):
 
 def sample_mdn(pi, mu, sigma):
     """
-    Sample a latent vector from the mixture distribution.
+    Sample batched latent vectors from the mixture distribution.
     
     Args:
-        pi: Mixture weights [1, 1, num_gaussians]
-        mu: Gaussian means [1, 1, num_gaussians, latent_dim]
-        sigma: Gaussian std devs [1, 1, num_gaussians, latent_dim]
+        pi: Mixture weights [batch_size, seq_len, num_gaussians]
+        mu: Gaussian means [batch_size, seq_len, num_gaussians, latent_dim]
+        sigma: Gaussian std devs [batch_size, seq_len, num_gaussians, latent_dim]
         
     Returns:
-        z: Sampled latent vector [1, 1, latent_dim]
+        z: Sampled latent vector [batch_size, seq_len, latent_dim]
     """
     batch_size, seq_len, num_gaussians, latent_dim = mu.shape
     
