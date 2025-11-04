@@ -68,15 +68,18 @@ class CarRacingDataset(Dataset):
         
         # Access the datasets directly using episode and step indices
         image = self.h5_file['images'][episode, step]
-        next_image = self.h5_file['images'][episode, step + 1] if step + 1 < self.max_steps else None
         action = self.h5_file['actions'][episode, step]
         reward = self.h5_file['rewards'][episode, step]
         done = self.h5_file['dones'][episode, step]
         
         # Preprocess image
         image = preprocess_carracing_image(image, to_grayscale=self.to_grayscale)
-        if next_image is not None:
+
+        if step + 1 < self.max_steps:
+            next_image = self.h5_file['images'][episode, step + 1]
             next_image = preprocess_carracing_image(next_image, to_grayscale=self.to_grayscale)
+        else:
+            next_image = torch.zeros_like(image)
         
         # Convert action, reward, and done to tensors
         action = torch.tensor(action, dtype=torch.float32)

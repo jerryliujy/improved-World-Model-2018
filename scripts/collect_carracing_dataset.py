@@ -231,14 +231,15 @@ def merge_episode_files(episodes_dir='temp_episodes_data',
                 print(f"Error deleting temporary file '{episode_file}': {de}")
 
     print(f"Merging completed successfully. Merged data saved to '{output_file}'.")
+    os.rmdir(episodes_dir)
     
     
     
 if __name__ == "__main__":
-    collect_data(env_name='CarRacing-v3', num_episodes=128, max_steps=1000, 
-                 output_dir='temp_episodes_data', num_workers=4)
+    collect_data(env_name='CarRacing-v3', num_episodes=256, max_steps=1000, 
+                 output_dir='temp_episodes_data', num_workers=8)
     
-    merge_episode_files(episodes_dir='outputs/data',
-                        output_file='car_racing_data.h5', 
+    merge_episode_files(episodes_dir='temp_episodes_data',
+                        output_file='outputs/data/car_racing_data.h5', 
                         env_name='CarRacing-v3',
                         num_max_steps=1000)

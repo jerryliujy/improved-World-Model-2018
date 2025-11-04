@@ -11,7 +11,6 @@ class Controller(nn.Module):
     """
     def __init__(self, state_dim, action_dim=3):
         super(Controller, self).__init__()
-        
         self.model = nn.Sequential(
             nn.Linear(state_dim, action_dim),
         )

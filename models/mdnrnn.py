@@ -103,10 +103,12 @@ class MDNRNN(nn.Module):
         hidden_dim: Dimension of the RNN hidden state
         num_gaussians: Number of Gaussian components in the mixture
         num_layers: Number of LSTM layers
+        resume: Whether to resume from a checkpoint
+        path: Path to the checkpoint file
     """
     def __init__(self, latent_dim, action_dim, hidden_dim, num_gaussians, num_layers=1):
         super(MDNRNN, self).__init__()
-        
+
         self.rnn = RNN(latent_dim, action_dim, hidden_dim, num_layers)
         self.mdn = MDN(latent_dim, hidden_dim, num_gaussians)
         self.hidden_dim = hidden_dim
@@ -133,7 +135,7 @@ class MDNRNN(nn.Module):
         return pi, mu, sigma, h
     
     
-    def loss(self, model_output, z_next):
+    def loss(self, pi, mu, sigma, h, z_next):
         """
         Compute MDN-RNN loss (negative log-likelihood of mixture of Gaussians).
         
@@ -144,7 +146,6 @@ class MDNRNN(nn.Module):
         Returns:
             nll: Scalar negative log-likelihood loss
         """
-        pi, mu, sigma, _ = model_output
         return gaussian_nll_loss(pi, mu, sigma, z_next)
 
 

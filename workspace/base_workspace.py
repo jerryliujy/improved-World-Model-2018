@@ -46,13 +46,14 @@ class BaseWorkspace:
         self.vision = hydra.utils.instantiate(cfg.vision)
         self.predictor = hydra.utils.instantiate(cfg.predictor)
         self.controller = hydra.utils.instantiate(cfg.controller)
-        if cfg.vision.resume:
-            load_checkpoint(self.vision, cfg.vision.path)
-        if cfg.predictor.resume:
-            load_checkpoint(self.predictor, cfg.predictor.path)
-        if cfg.controller.resume:
-            load_checkpoint(self.controller, cfg.controller.path)
-        
+
+        if cfg.training.vision_resume:
+            load_checkpoint(self.vision, cfg.training.vision_path)
+        if cfg.training.predictor_resume:
+            load_checkpoint(self.predictor, cfg.training.predictor_path)
+        if cfg.training.controller_resume:
+            load_checkpoint(self.controller, cfg.training.controller_path)
+            
         # configure training setting
         self.model_to_train = None
         if cfg.training.stage == 1:
@@ -103,7 +104,7 @@ class BaseWorkspace:
         if stage == 1:
             # VAE: images -> encoded images
             images, _, _, _, _ = batch_data
-            images = images.to(device).squeeze()
+            images = images.to(device)
             return {
                 'inputs': [images],
                 'targets': [images]
@@ -113,25 +114,16 @@ class BaseWorkspace:
             # Note: This requires pre-encoded observations from VAE
             # Placeholder implementation
             images, actions, rewards, dones, next_images = batch_data
-            images = images.to(device).squeeze()
-            next_images = next_images.to(device).squeeze()
-            z = self.vision.encode(images)
-            next_z = self.vision.encode(next_images)
-            actions = actions.to(device).squeeze()
+            images = images.to(device)
+            next_images = next_images.to(device)
+            vision = self.vision.to(device)
+            vision.eval()
+            z = vision.encode(images).unsqueeze(1)  
+            next_z = vision.encode(next_images).unsqueeze(1)
+            actions = actions.to(device).unsqueeze(1)
             return {
                 'inputs': [z, actions],
                 'targets': [next_z]  # Target should be z_next after VAE encoding
-            }
-        elif stage == 3:
-            # Controller: (z, h) -> actions
-            # Note: This requires pre-encoded observations and RNN hidden states
-            # Placeholder implementation
-            images, actions, rewards, dones = batch_data
-            images = images.to(device)
-            actions = actions.to(device)
-            return {
-                'inputs': [images],
-                'targets': [actions]
             }
         else:
             raise ValueError(f"Unknown training stage: {stage}")

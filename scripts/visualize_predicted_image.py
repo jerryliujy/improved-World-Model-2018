@@ -45,7 +45,7 @@ if __name__ == "__main__":
         num_layers=1,
     )
     load_checkpoint(vision, "checkpoints/stage_1_epoch_0003.pth")
-    load_checkpoint(predictor, "checkpoints/stage_2_epoch_0003.pth")
+    load_checkpoint(predictor, "checkpoints/stage_2_epoch_0005.pth")
     
     vision = vision.to(device)
     predictor = predictor.to(device)
@@ -66,7 +66,7 @@ if __name__ == "__main__":
     actions = actions.to(device)
 
     with torch.no_grad():
-        pi, mu, sigma, _ = predictor(images.squeeze(), actions.squeeze())
+        pi, mu, sigma, _ = predictor(images, actions)
         z_next = sample_mdn(pi, mu, sigma)
         reconstructed = vision.decode(z_next.squeeze(0))
 

@@ -36,7 +36,7 @@ if __name__ == "__main__":
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
     model = VAE(image_channels=3, latent_dim=32)
-    load_checkpoint(model, "checkpoints/", 1, 3)
+    load_checkpoint(model, "checkpoints/stage_1_epoch_0003.pth")
     model = model.to(device)
     model.eval()
 
@@ -49,7 +49,7 @@ if __name__ == "__main__":
         num_workers=0
     )
     
-    images, _, _, _ = next(iter(dataloader))
+    images, _, _, _, _ = next(iter(dataloader))
     images = images.to(device)
 
     with torch.no_grad():
