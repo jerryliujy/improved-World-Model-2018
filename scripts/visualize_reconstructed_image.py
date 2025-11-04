@@ -10,7 +10,7 @@ from common.img_process import preprocess_carracing_image
 from common.model_loader import load_checkpoint
 from models.vae import VAE
 from models.vq_vae import VQVAE
-from datasets.datasets import CarRacingDataset
+from datasets.vision_datasets import CarRacingDataset
 
 def plot_images(original, reconstructed, n=4, save_path='outputs/imgs/reconstructed_images.png'):
     fig, axes = plt.subplots(2, n, figsize=(12, 7))

@@ -149,57 +149,28 @@ class MDNRNN(nn.Module):
 
 def sample_mdn(pi, mu, sigma):
     """
-    Sample batched latent vectors from the mixture distribution.
+    Sample a latent vector from the mixture distribution. Used in test time.
     
     Args:
-        pi: Mixture weights [batch_size, seq_len, num_gaussians]
-        mu: Gaussian means [batch_size, seq_len, num_gaussians, latent_dim]
-        sigma: Gaussian std devs [batch_size, seq_len, num_gaussians, latent_dim]
+        pi: Mixture weights [1, 1, num_gaussians]
+        mu: Gaussian means [1, 1, num_gaussians, latent_dim]
+        sigma: Gaussian std devs [1, 1, num_gaussians, latent_dim]
         
     Returns:
-        z: Sampled latent vector [batch_size, seq_len, latent_dim]
+        z: Sampled latent vector [1, 1, latent_dim]
     """
-    batch_size, seq_len, num_gaussians, latent_dim = mu.shape
-    
-    # Flatten batch and seq dimensions for easier processing
-    pi_flat = pi.view(batch_size * seq_len, num_gaussians)  # [batch*seq, num_gaussians]
-    mu_flat = mu.view(batch_size * seq_len, num_gaussians, latent_dim)  # [batch*seq, num_gaussians, latent_dim]
-    sigma_flat = sigma.view(batch_size * seq_len, num_gaussians, latent_dim)
-    
-    # Sample component index for each sequence position
-    z_samples = []
-    for i in range(batch_size * seq_len):
-        # Select a Gaussian component based on mixture weights
-        component_index = torch.multinomial(pi_flat[i], 1).item()  # Sample from [0, num_gaussians)
-        
-        # Get the mean and std dev for the selected component
-        selected_mu = mu_flat[i, component_index]  # [latent_dim]
-        selected_sigma = sigma_flat[i, component_index]  # [latent_dim]
-        
-        # Sample from the Gaussian distribution
-        epsilon = torch.randn(latent_dim, device=mu.device)
-        z = selected_mu + selected_sigma * epsilon  # [latent_dim]
-        z_samples.append(z)
-    
-    # Stack and reshape back to [batch_size, seq_len, latent_dim]
-    z_samples = torch.stack(z_samples)  # [batch*seq, latent_dim]
-    z_samples = z_samples.view(batch_size, seq_len, latent_dim)
-    
-    return z_samples
+    # Select a Gaussian component based on mixture weights
+    component_index = torch.multinomial(pi.view(-1), 1).item()  
 
+    # Get the mean and std dev for the selected component
+    selected_mu = mu[0, 0, component_index]   
+    selected_sigma = sigma[0, 0, component_index]  
 
-    # # Select a Gaussian component based on mixture weights
-    # component_index = torch.multinomial(pi.view(-1), 1).item()  
+    # Sample from the Gaussian distribution
+    epsilon = torch.randn(selected_mu.size(), device=mu.device)
+    z = selected_mu + selected_sigma * epsilon
 
-    # # Get the mean and std dev for the selected component
-    # selected_mu = mu[0, 0, component_index]   
-    # selected_sigma = sigma[0, 0, component_index]  
-
-    # # Sample from the Gaussian distribution
-    # epsilon = torch.randn(selected_mu.size(), device=mu.device)
-    # z = selected_mu + selected_sigma * epsilon
-
-    # return z.unsqueeze(0).unsqueeze(0)
+    return z.unsqueeze(0).unsqueeze(0)
 
 
 def gaussian_nll_loss(pi, mu, sigma, z_next):

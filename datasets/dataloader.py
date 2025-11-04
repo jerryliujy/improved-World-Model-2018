@@ -1,7 +1,7 @@
 import torch
 from torch.utils.data import DataLoader, Subset
 from typing import Literal, Tuple
-from datasets.datasets import CarRacingDataset
+from datasets.vision_datasets import CarRacingDataset
 from common.img_process import preprocess_breakout_image
 
     

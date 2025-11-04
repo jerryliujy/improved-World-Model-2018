@@ -10,7 +10,7 @@ from common.model_loader import load_checkpoint
 from models.vae import VAE
 from models.vq_vae import VQVAE
 from models.mdnrnn import MDNRNN, sample_mdn
-from datasets.datasets import CarRacingDataset
+from datasets.vision_datasets import VisionDataset
 
 def plot_images(original, reconstructed, n=4, save_path='outputs/imgs/predicted_images.png'):
     fig, axes = plt.subplots(2, n, figsize=(12, 7))
@@ -51,7 +51,7 @@ if __name__ == "__main__":
     vision.eval()
     predictor.eval()
 
-    dataset = CarRacingDataset(h5_path=h5_path, to_grayscale=False)
+    dataset = VisionDataset(h5_path=h5_path, to_grayscale=False)
     
     dataloader = DataLoader(
         dataset, 
@@ -62,11 +62,11 @@ if __name__ == "__main__":
     
     images, actions, _, _, next_images = next(iter(dataloader))
     images = images.to(device)
-    actions = actions.to(device)
-    z = vision.encode(images).unsqueeze(1)  # [batch, 1, latent_dim]
+    actions = actions.to(device).unsqueeze(1)
+    z = vision.encode(images).unsqueeze(1)
 
     with torch.no_grad():
-        pi, mu, sigma, _ = predictor(z, actions.unsqueeze(1))
+        pi, mu, sigma, _ = predictor(z, actions)
         z_next = sample_mdn(pi, mu, sigma)
         reconstructed = vision.decode(z_next.squeeze(1))
 

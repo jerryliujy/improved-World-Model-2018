@@ -102,28 +102,27 @@ class BaseWorkspace:
         stage = self.cfg.training.stage
         
         if stage == 1:
-            # VAE: images -> encoded images
-            images, _, _, _, _ = batch_data
+            # Stage 1 should use vision dataset
+            # If using the wrong dataset, program will run into error when batch_data is unpacked
+            images, _, _, _  = batch_data
             images = images.to(device)
             return {
                 'inputs': [images],
                 'targets': [images]
             }
         elif stage == 2:
-            # MDNRNN: (z, a) -> z_next distribution
-            # Note: This requires pre-encoded observations from VAE
-            # Placeholder implementation
-            images, actions, rewards, dones, next_images = batch_data
+            # Stage 2 should use predictor dataset
+            images, actions, _, _, next_images = batch_data
             images = images.to(device)
             next_images = next_images.to(device)
             vision = self.vision.to(device)
             vision.eval()
-            z = vision.encode(images).unsqueeze(1)  
-            next_z = vision.encode(next_images).unsqueeze(1)
-            actions = actions.to(device).unsqueeze(1)
+            z = vision.encode(images) 
+            next_z = vision.encode(next_images)
+            actions = actions.to(device)
             return {
                 'inputs': [z, actions],
-                'targets': [next_z]  # Target should be z_next after VAE encoding
+                'targets': [next_z]  
             }
         else:
             raise ValueError(f"Unknown training stage: {stage}")

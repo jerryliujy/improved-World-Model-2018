@@ -32,9 +32,11 @@ class MDNTransformer(nn.Module):
             num_gaussians=num_gaussians
         )
         
-        def forward(self, z, tau=1.0):
-            outputs = self.transformer_encoder(z)
-            return self.mdn(outputs, tau)
+        def forward(self, z, a, tau=1.0):
+            x = torch.cat([z, a], dim=-1)
+            outputs = self.transformer_encoder(x)
+            pi, mu, sigma = self.mdn(outputs, tau)
+            return pi, mu, sigma
         
         def loss(self, pi, mu, sigma, z_next):
             return gaussian_nll_loss(pi, mu, sigma, z_next)

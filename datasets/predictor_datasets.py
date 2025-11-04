@@ -1,21 +1,19 @@
 import torch
-from torch.utils.data import Dataset, Subset, DataLoader
+from torch.utils.data import Dataset
 import h5py
 from typing import Tuple
 from common.img_process import preprocess_carracing_image
 
 
-class CarRacingDataset(Dataset):
+class PredictorDataset(Dataset):
     """
-    PyTorch Dataset for CarRacing data stored in HDF5 format.
+    PyTorch Dataset for data stored in HDF5 format.
     
     This dataset provides on-demand access to observations, actions, rewards,
     and done flags stored in the consolidated HDF5 file. Images are preprocessed
     to grayscale and properly normalized.
     
-    Key Design: This dataset loads ALL data without splitting. Splitting should be
-    done at the DataLoader level using Subset, to avoid creating multiple Dataset
-    objects that each open the same HDF5 file.
+    Each sample consists of sequence data instead of single frames.
     """
     
     def __init__(
@@ -47,46 +45,26 @@ class CarRacingDataset(Dataset):
     
     def __getitem__(self, idx: int) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
         """
-        Retrieve a single frame and associated data.
-        
-        Args:
-            idx: Index of the frame to retrieve (0 to total_frames-1)
-            
-        Returns:
-            tuple: (image, action, reward, done) tensors
-                - image: torch.Tensor of shape (1, 96, 96) if grayscale
-                - action: torch.Tensor of shape (3,) - [steering, acceleration, brake]
-                - reward: torch.Tensor scalar
-                - done: torch.Tensor scalar (boolean)
+        Retrieve an episode sample from the dataset.
         """
         if self.h5_file is None:
             self.h5_file = h5py.File(self.h5_path, 'r')
         
-        # Calculate episode and step from the flat index
-        episode = idx // self.max_steps
-        step = idx % self.max_steps
+        images = self.h5_file['images'][idx]
+        action = self.h5_file['actions'][idx]
+        reward = self.h5_file['rewards'][idx]
+        done = self.h5_file['dones'][idx]
         
-        # Access the datasets directly using episode and step indices
-        image = self.h5_file['images'][episode, step]
-        action = self.h5_file['actions'][episode, step]
-        reward = self.h5_file['rewards'][episode, step]
-        done = self.h5_file['dones'][episode, step]
-        
-        # Preprocess image
-        image = preprocess_carracing_image(image, to_grayscale=self.to_grayscale)
-
-        if step + 1 < self.max_steps:
-            next_image = self.h5_file['images'][episode, step + 1]
-            next_image = preprocess_carracing_image(next_image, to_grayscale=self.to_grayscale)
-        else:
-            next_image = torch.zeros_like(image)
+        images = torch.stack([preprocess_carracing_image(image) for image in images])
+        next_images = images[1:]
+        images = images[:-1]
         
         # Convert action, reward, and done to tensors
         action = torch.tensor(action, dtype=torch.float32)
         reward = torch.tensor(reward, dtype=torch.float32)
         done = torch.tensor(done, dtype=torch.float32)
         
-        return image, action, reward, done, next_image
+        return images, action, reward, done, next_images
     
     def __del__(self):
         """Ensure the HDF5 file is closed when the dataset is deleted."""
