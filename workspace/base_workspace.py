@@ -10,7 +10,7 @@ import torch
 import matplotlib.pyplot as plt
 import cma
 from datasets.dataloader import get_dataloaders
-from common.model_loader import save_checkpoint
+from common.model_loader import save_checkpoint, load_checkpoint
 
 
 class BaseWorkspace:
@@ -46,6 +46,12 @@ class BaseWorkspace:
         self.vision = hydra.utils.instantiate(cfg.vision)
         self.predictor = hydra.utils.instantiate(cfg.predictor)
         self.controller = hydra.utils.instantiate(cfg.controller)
+        if cfg.vision.resume:
+            load_checkpoint(self.vision, cfg.vision.path)
+        if cfg.predictor.resume:
+            load_checkpoint(self.predictor, cfg.predictor.path)
+        if cfg.controller.resume:
+            load_checkpoint(self.controller, cfg.controller.path)
         
         # configure training setting
         self.model_to_train = None
@@ -96,7 +102,7 @@ class BaseWorkspace:
         
         if stage == 1:
             # VAE: images -> encoded images
-            images, _, _, _ = batch_data
+            images, _, _, _, _ = batch_data
             images = images.to(device).squeeze()
             return {
                 'inputs': [images],
@@ -106,12 +112,15 @@ class BaseWorkspace:
             # MDNRNN: (z, a) -> z_next distribution
             # Note: This requires pre-encoded observations from VAE
             # Placeholder implementation
-            images, actions, rewards, dones = batch_data
+            images, actions, rewards, dones, next_images = batch_data
             images = images.to(device).squeeze()
+            next_images = next_images.to(device).squeeze()
+            z = self.vision.encode(images)
+            next_z = self.vision.encode(next_images)
             actions = actions.to(device).squeeze()
             return {
-                'inputs': [images, actions],
-                'targets': [images]  # Target should be z_next after VAE encoding
+                'inputs': [z, actions],
+                'targets': [next_z]  # Target should be z_next after VAE encoding
             }
         elif stage == 3:
             # Controller: (z, h) -> actions

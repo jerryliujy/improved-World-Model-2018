@@ -68,19 +68,22 @@ class CarRacingDataset(Dataset):
         
         # Access the datasets directly using episode and step indices
         image = self.h5_file['images'][episode, step]
+        next_image = self.h5_file['images'][episode, step + 1] if step + 1 < self.max_steps else None
         action = self.h5_file['actions'][episode, step]
         reward = self.h5_file['rewards'][episode, step]
         done = self.h5_file['dones'][episode, step]
         
         # Preprocess image
         image = preprocess_carracing_image(image, to_grayscale=self.to_grayscale)
+        if next_image is not None:
+            next_image = preprocess_carracing_image(next_image, to_grayscale=self.to_grayscale)
         
         # Convert action, reward, and done to tensors
         action = torch.tensor(action, dtype=torch.float32)
         reward = torch.tensor(reward, dtype=torch.float32)
         done = torch.tensor(done, dtype=torch.float32)
         
-        return image, action, reward, done
+        return image, action, reward, done, next_image
     
     def __del__(self):
         """Ensure the HDF5 file is closed when the dataset is deleted."""

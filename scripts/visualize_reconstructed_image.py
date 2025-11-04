@@ -51,7 +51,6 @@ if __name__ == "__main__":
     
     images, _, _, _ = next(iter(dataloader))
     images = images.to(device)
-    print(f"shape: {images.shape}")
 
     with torch.no_grad():
         reconstructed, _, _ = model(images.squeeze())

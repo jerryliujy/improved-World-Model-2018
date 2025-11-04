@@ -33,11 +33,20 @@ training:
   train_method: dl      # dl or cma_es
   
   # Optimizer configuration
+  # Stage 1
   optimizer:
     _target_: torch.optim.AdamW
     lr: 0.001
     betas: [0.9, 0.999]
+    weight_decay: 1e-6
     eps: 1e-8
+
+  # Stage 2
+  # optimizer:
+  #   _target_: torch.optim.Adam
+  #   lr: 1e-4
+  #   betas: [0.9, 0.999]
+  #   eps: 1e-8
   
   # CMA-ES configuration for stage 3
   cma_es:
@@ -53,6 +62,8 @@ vision:
   _target_: models.vae.VAE
   image_channels: 3  # should be 1 if greyscale
   latent_dim: 32
+  resume: true
+  path: checkpoints/vae_checkpoint.pth
 
 # Memory model configuration
 predictor:
@@ -62,12 +73,16 @@ predictor:
   hidden_dim: 256
   num_gaussians: 5
   num_layers: 1
+  resume: false
+  path: checkpoints/mdnrnn_checkpoint.pth
 
 # Controller configuration
 controller:
   _target_: models.controller.Controller
   state_dim: 288              # latent_dim(32) + hidden_dim(256)
   action_dim: 3
+  resume: false
+  path: checkpoints/controller_checkpoint.pth
 
 # Evaluation configuration
 eval:
