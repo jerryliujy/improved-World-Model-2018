@@ -97,7 +97,6 @@ class BaseWorkspace:
         
         Stage 1: Input is images, target is images
         Stage 2: Input is (z, a), target is z_next
-        Stage 3: Input is (z, h), target is actions
         
         Returns:
             dict with 'inputs' and 'targets' for model.loss()
@@ -277,6 +276,9 @@ class BaseWorkspace:
             print("CMA-ES training is only for Stage 3 (Controller). Please set training.stage=3")
             return
         
+        self.vision.eval()
+        self.predictor.eval()
+        
         # Load CMA-ES hyperparameters from config
         cma_cfg = self.cfg.training.cma_es
         initial_sigma = cma_cfg.initial_sigma
@@ -284,7 +286,6 @@ class BaseWorkspace:
         popsize = cma_cfg.popsize
         checkpoint_interval = cma_cfg.checkpoint_interval
         num_rollouts = cma_cfg.num_rollouts
-        max_steps = cma_cfg.max_steps
         
         # Setup metrics tracking
         metrics = {
@@ -306,91 +307,53 @@ class BaseWorkspace:
         # Initialize CMA-ES optimizer
         es = cma.CMAEvolutionStrategy(initial_params, initial_sigma, {'popsize': popsize})
         
-        # Main training loop
         for generation in range(max_generations):
-            # Generate population for this generation
-            solutions = es.ask()  
-
-            # Evaluate each solution multiple times and average
-            generation_rewards = []
-            for solution in solutions:
-                rewards_for_solution = []
-                for rollout in range(num_rollouts):
-                    # Load solution parameters into controller
-                    torch.nn.utils.vector_to_parameters(
-                        torch.tensor(solution, dtype=torch.float32, device=self.device),
-                        controller.parameters()
-                    )
-                    
-                    # Run evaluation
-                    total_reward = self._evaluate_controller(max_steps=max_steps)
-                    rewards_for_solution.append(total_reward)
-                
-                # Average reward for this solution
-                avg_reward = np.mean(rewards_for_solution)
-                generation_rewards.append(avg_reward)
+            solutions = es.ask()
+            
+            # ============ Parallel evaluation (key optimization) ============
+            print(f"Evaluating generation {generation + 1}/{max_generations} ({len(solutions)} solutions)...")
+            
+            generation_rewards = self.env_runner.evaluate(
+                vision=self.vision,
+                predictor=self.predictor,
+                controller_params_list=solutions,
+                controller_class=self.controller.__class__,
+                num_rollouts=num_rollouts,
+                state_dim=self.cfg.controller.state_dim,
+                action_dim=self.cfg.controller.action_dim
+            )
             
             generation_rewards = np.array(generation_rewards)
-
-            # Update CMA-ES with rewards (negative because CMA-ES minimizes)
+            
+            # Update CMA-ES
             es.tell(solutions, [-r for r in generation_rewards])
             
-            # Calculate and log training statistics
+            # Logging
             log = (f'Generation {generation + 1}/{max_generations} | '
-                f'Best Reward: {np.max(generation_rewards):.2f} | '
-                f'Avg Reward: {np.mean(generation_rewards):.2f} | '
+                f'Best: {np.max(generation_rewards):.2f} | '
+                f'Mean: {np.mean(generation_rewards):.2f} | '
                 f'Worst: {np.min(generation_rewards):.2f} | '
                 f'Sigma: {es.sigma:.4f}')
             print(log)
 
-            # Update metrics
             metrics['generation'].append(generation + 1)
             metrics['best_reward'].append(float(np.max(generation_rewards)))
             metrics['worst_reward'].append(float(np.min(generation_rewards)))
             metrics['mean_reward'].append(float(np.mean(generation_rewards)))
                     
-            # Save checkpoint at intervals
             if (generation + 1) % checkpoint_interval == 0:
                 torch.nn.utils.vector_to_parameters(
                     torch.tensor(es.result.xbest, dtype=torch.float32, device=self.device),
                     controller.parameters()
                 )
-                checkpoint_path = os.path.join(checkpoint_dir, f'stage_3_cma_gen_{generation + 1:04d}.pth')
+                checkpoint_path = os.path.join(
+                    checkpoint_dir, 
+                    f'stage_3_cma_gen_{generation + 1:04d}.pth'
+                )
                 torch.save(controller.state_dict(), checkpoint_path)
                 print(f'Checkpoint saved: {checkpoint_path}')
         
-        # Save final model
-        torch.nn.utils.vector_to_parameters(
-            torch.tensor(es.result.xbest, dtype=torch.float32, device=self.device),
-            controller.parameters()
-        )
-        final_path = os.path.join(checkpoint_dir, 'stage_3_final.pth')
-        torch.save(controller.state_dict(), final_path)
-        print(f'Final model saved to {final_path}')
+        # Cleanup
+        self.env_runner.close()
         
         return es, metrics
-    
-    
-    def _evaluate_controller(self, max_steps: int = 1000, num_episodes: int = 1):
-        """
-        Evaluate controller using env_runner.
-        
-        Args:
-            max_steps: maximum steps per episode
-            num_episodes: number of episodes to average over
-            
-        Returns:
-            average reward across episodes
-        """
-        results = self.env_runner.run(
-            vision=self.vision,
-            predictor=self.predictor,
-            controller=self.model_to_train,
-            num_episodes=num_episodes,
-            max_steps=max_steps,
-            render=False
-        )
-        
-        return results['avg_reward']
-    ###############################################
-    ###############################################

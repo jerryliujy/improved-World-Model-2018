@@ -1,24 +1,22 @@
 import gymnasium as gym
 import torch
 import cv2
+import os
 import numpy as np
 from common.img_process import preprocess_carracing_image
 
 
 class CarRacingRunner:
+    """
+    None-vectorized runner is more suitable for evaluation rather than training the controller.
+    """
     def __init__(
         self,
         env_name='CarRacing-v3',
-        save_video=False,
-        video_filename='car_racing_eval.mp4',
-        resolution=(96, 96),
         device: str = None,
         to_grayscale: bool = False,
     ):
         self.env_name = env_name
-        self.save_video = save_video
-        self.video_filename = video_filename
-        self.resolution = resolution
         self.to_grayscale = to_grayscale
 
         # determine device
@@ -29,7 +27,9 @@ class CarRacingRunner:
 
         self.env = gym.make(self.env_name, render_mode='rgb_array')
 
-    def run(self, vision, predictor, controller, num_episodes: int = 1, max_steps: int = 1000, render: bool = False):
+    def run(self, vision, predictor, controller, 
+            num_episodes: int = 1, max_steps: int = 1000, render: bool = False,
+            output_dir: str = None, save_video: bool = False, resolution=(96, 96)):
         """
         Run evaluation rollouts using the provided models.
 
@@ -56,9 +56,6 @@ class CarRacingRunner:
         vision.to(self.device)
         predictor.to(self.device)
         controller.to(self.device)
-        vision.eval()
-        predictor.eval()
-        controller.eval()
 
         episode_rewards = []
         episode_steps = []
@@ -69,11 +66,16 @@ class CarRacingRunner:
 
             # setup video writer if requested
             video_writer = None
-            if self.save_video:
-                fourcc = cv2.VideoWriter_fourcc(*'XVID')
+            if save_video and output_dir is not None:
+                video_name = f"episode_{ep+1:03d}.mp4"
+                video_path = os.path.join(output_dir, video_name)
+                
+                fourcc = cv2.VideoWriter_fourcc(*'mp4v')
                 video_writer = cv2.VideoWriter(
-                    self.video_filename, fourcc, 30.0, (self.resolution[0], self.resolution[1])
+                    video_path, fourcc, 30.0, 
+                    (resolution[0], resolution[1])
                 )
+                print(f"  Episode {ep+1}: Recording to {video_name}")
 
             # Initialize hidden state (h is None, predictor handles initialization)
             h = None
@@ -108,7 +110,7 @@ class CarRacingRunner:
 
                     # Update predictor hidden state: forward(z, a, h) -> h_new
                     a_seq = torch.tensor(step_action, dtype=torch.float32, device=self.device).unsqueeze(0).unsqueeze(0)
-                    _, h = predictor(z_seq, a_seq, h=h)
+                    _, _, _, h = predictor(z_seq, a_seq, h=h)
 
                 # Step environment
                 obs, reward, done, truncated, info = env.step(step_action)
@@ -117,7 +119,7 @@ class CarRacingRunner:
 
                 # Write video frame if needed
                 if video_writer is not None:
-                    frame = cv2.resize(obs, self.resolution)
+                    frame = cv2.resize(obs, resolution)
                     video_writer.write(frame[:, :, ::-1])  # RGB->BGR for OpenCV
 
                 cumulative_reward += reward
@@ -133,8 +135,6 @@ class CarRacingRunner:
             episode_steps.append(step_count)
             print(f'Episode {ep+1} | Reward: {cumulative_reward:.2f} | Steps: {step_count}')
 
-        env.close()
-        
         # Calculate statistics
         avg_reward = np.mean(episode_rewards)
         std_reward = np.std(episode_rewards)
@@ -145,3 +145,6 @@ class CarRacingRunner:
             'avg_reward': avg_reward,
             'std_reward': std_reward
         }
+
+    def close(self):
+        self.env.close()

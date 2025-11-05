@@ -18,7 +18,8 @@ class MDNTransformer(nn.Module):
             dim_feedforward=latent_dim*4,
             dropout=0.1,
             activation='relu',
-            batch_first=True
+            batch_first=True,
+            norm_first=True
         )
         
         self.transformer_encoder = nn.TransformerEncoder(
@@ -31,10 +32,20 @@ class MDNTransformer(nn.Module):
             hidden_dim=latent_dim,
             num_gaussians=num_gaussians
         )
+
+        def _create_causal_mask(self, seq_len):
+            mask = torch.triu(torch.ones(seq_len, seq_len), diagonal=1).bool()
+            return mask
         
         def forward(self, z, a, tau=1.0):
-            x = torch.cat([z, a], dim=-1)
-            outputs = self.transformer_encoder(x)
+            seq_len = z.size(1)
+            causal_mask = self._create_causal_mask(seq_len)
+            x = torch.cat([z, a], dim=-1)  # [batch_size, seq_len, latent_dim + action_dim]
+            outputs = self.transformer_encoder(
+                x, 
+                mask=causal_mask,
+                is_causal=True
+            )
             pi, mu, sigma = self.mdn(outputs, tau)
             return pi, mu, sigma
         

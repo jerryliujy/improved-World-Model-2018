@@ -5,36 +5,37 @@ sys.stderr = open(sys.stderr.fileno(), mode='w', buffering=1)
 
 import os
 import pathlib
-import click
 import hydra
 import torch
-import dill
-import wandb
 import json
+from datetime import datetime
+from omegaconf import OmegaConf
 from workspace.base_workspace import BaseWorkspace
 
-@click.command()
-@click.option('-c', '--checkpoint', required=True)
-@click.option('-o', '--output_dir', required=True)
-@click.option('-d', '--device', default='cuda:0')
-def main(checkpoint, output_dir, device):
-    if os.path.exists(output_dir):
-        click.confirm(f"Output path {output_dir} already exists! Overwrite?", abort=True)
+@hydra.main(
+    version_base=None,
+    config_path=str(pathlib.Path(__file__).parent.joinpath('configs')),
+    config_name='car_racing_workspace'
+)
+def main(cfg: OmegaConf):
+    OmegaConf.resolve(cfg)
+
+    output_dir = cfg.eval.output_dir
     pathlib.Path(output_dir).mkdir(parents=True, exist_ok=True)
     
-    # load checkpoint
-    payload = torch.load(open(checkpoint, 'rb'), pickle_module=dill)
-    cfg = payload['cfg']
-    cls = hydra.utils.get_class(cfg._target_)
-    workspace = cls(cfg, output_dir=output_dir)
-    workspace: BaseWorkspace
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    eval_output_dir = os.path.join(output_dir, f"eval_{timestamp}")
+    pathlib.Path(eval_output_dir).mkdir(parents=True, exist_ok=True)
+
+    cls = hydra.utils.get_class(cfg.workspace._target_)
+    workspace: BaseWorkspace = cls(cfg)
     
     # get policy from workspace
     vae = workspace.vision
     predictor = workspace.predictor
     controller = workspace.controller
-    
-    device = torch.device(device)
+
+    device = torch.device(cfg.device)
     vae.to(device)
     predictor.to(device)
     controller.to(device)
@@ -43,20 +44,63 @@ def main(checkpoint, output_dir, device):
     controller.eval()
 
     # run eval
-    env_runner = hydra.utils.instantiate(
-        cfg.task.env_runner,
-        output_dir=output_dir)
-    runner_log = env_runner.run(vae, predictor, controller)
+    env_runner = workspace.env_runner
+    eval_results = env_runner.run(
+        vae, predictor, controller, 
+        num_episodes=cfg.eval.num_episodes, max_steps=cfg.eval.max_steps, render=cfg.eval.render,
+        output_dir=eval_output_dir, save_video=cfg.eval.save_video
+    )
     
-    # dump log to json
-    json_log = dict()
-    for key, value in runner_log.items():
-        if isinstance(value, wandb.sdk.data_types.video.Video):
-            json_log[key] = value._path
-        else:
-            json_log[key] = value
-    out_path = os.path.join(output_dir, 'eval_log.json')
-    json.dump(json_log, open(out_path, 'w'), indent=2, sort_keys=True)
+    json_path = os.path.join(eval_output_dir, 'eval_results.json')
+    json_results = {
+        'timestamp': timestamp,
+        'mean_reward': float(eval_results['avg_reward']),
+        'std_reward': float(eval_results['std_reward']),
+        'max_reward': float(max(eval_results['episode_rewards'])),
+        'min_reward': float(min(eval_results['episode_rewards'])),
+        'num_episodes': len(eval_results['episode_rewards']),
+        'config': OmegaConf.to_container(cfg, resolve=True)
+    }
+    
+    with open(json_path, 'w') as f:
+        json.dump(json_results, f, indent=2, sort_keys=True)
+    print(f"JSON results saved: {json_path}")
+    
+    report_path = os.path.join(eval_output_dir, 'evaluation_report.txt')
+    with open(report_path, 'w') as f:
+        f.write("=" * 60 + "\n")
+        f.write("EVALUATION REPORT\n")
+        f.write("=" * 60 + "\n\n")
+        
+        f.write(f"Timestamp: {timestamp}\n")
+        f.write(f"Device: {cfg.device}\n")
+        f.write(f"Environment: {cfg.env_runner.env_name}\n")
+        f.write(f"Total Episodes: {len(eval_results['episode_rewards'])}\n")
+        f.write(f"Max Steps per Episode: {cfg.eval.max_steps}\n\n")
+        
+        f.write("RESULTS SUMMARY\n")
+        f.write("-" * 60 + "\n")
+        f.write(f"Mean Reward:     {eval_results['avg_reward']:>10.2f}\n")
+        f.write(f"Std Reward:      {eval_results['std_reward']:>10.2f}\n")
+        f.write(f"Max Reward:      {max(eval_results['episode_rewards']):>10.2f}\n")
+        f.write(f"Min Reward:      {min(eval_results['episode_rewards']):>10.2f}\n\n")
+        
+        f.write("EPISODE DETAILS\n")
+        f.write("-" * 60 + "\n")
+        f.write(f"{'Episode':<12}{'Reward':<15}{'Steps':<12}\n")
+        f.write("-" * 60 + "\n")
+        
+        for i, (reward, steps) in enumerate(zip(
+            eval_results['episode_rewards'],
+            eval_results['episode_steps']
+        )):
+            f.write(f"{i+1:<12}{reward:<15.2f}{steps:<12}\n")
+        
+        f.write("\n" + "=" * 60 + "\n")
+    
+    print(f"Report saved: {report_path}")
+
+    env_runner.close()
 
 if __name__ == '__main__':
     main()
