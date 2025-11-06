@@ -18,9 +18,8 @@ pandas>=1.3.0
 tensorboardX>=2.3
 h5py
 hydra-core
-dill
 cma
-swig
+swig==4.4.0
 minari==0.5.2
 minari[hf]
 gymnasium[box2d]

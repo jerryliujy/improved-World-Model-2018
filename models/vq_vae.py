@@ -94,10 +94,11 @@ class VQVAE(nn.Module):
             nn.Conv2d(64, 128, kernel_size=4, stride=2, padding=1),
             nn.ReLU(),
             
-            nn.Conv2d(128, 128, kernel_size=4, stride=2, padding=1),
+            nn.Conv2d(128, 256, kernel_size=4, stride=2, padding=1),
             nn.ReLU(),
             
-            nn.Conv2d(128, latent_dim, kernel_size=1)
+            nn.Flatten(),
+            nn.Linear(256 * 6 * 6, self.latent_dim)
         )
         
         self.vector_quantizer = VectorQuantizer(
@@ -108,15 +109,18 @@ class VQVAE(nn.Module):
 
         # Decoder
         self.decoder = nn.Sequential(
-            nn.ConvTranspose2d(latent_dim, 128, kernel_size=4, stride=2, padding=1),
+            nn.Linear(latent_dim, 256 * 6 * 6),
+            nn.Unflatten(1, (256, 6, 6)),
+
+            nn.ConvTranspose2d(256, 128, kernel_size=4, stride=2, padding=1),
             nn.ReLU(),
             
             nn.ConvTranspose2d(128, 64, kernel_size=4, stride=2, padding=1),
             nn.ReLU(),
-            
+
             nn.ConvTranspose2d(64, 32, kernel_size=4, stride=2, padding=1),
             nn.ReLU(),
-            
+
             nn.ConvTranspose2d(32, image_channels, kernel_size=4, stride=2, padding=1),
             nn.Sigmoid()
         )
@@ -126,48 +130,25 @@ class VQVAE(nn.Module):
 
     def encode(self, x):
         # Get encoder output
-        z_pre_vq = self.encoder(x)  # [batch_size, latent_dim, 6, 6]
+        z_pre_vq = self.encoder(x)  # [batch_size, latent_dim]
         
-        # Reshape for quantization
-        z_pre_vq = z_pre_vq.permute(0, 2, 3, 1).contiguous()  # [batch_size, 6, 6, latent_dim]
-        z_pre_vq_flat = z_pre_vq.view(-1, self.latent_dim)    # [batch_size*6*6, latent_dim]
+        z_quantized, _ = self.vector_quantizer(z_pre_vq)
         
-        # Perform vector quantization
-        z_quantized_flat, _, _, _ = self.vector_quantizer(z_pre_vq_flat)
-        z_quantized = z_quantized_flat.view(z_pre_vq.shape)
-        
-        z_quantized = z_quantized.permute(0, 3, 1, 2).contiguous()  # [batch_size, latent_dim, 6, 6]
-        
-        return z_quantized
+        return z_quantized  # [batch_size, latent_dim]
     
     def decode(self, z):
         return self.decoder(z)
     
     def forward(self, x):
-        # Encode
-        z_encoded = self.encoder(x)  # [batch_size, latent_dim, 6, 6]
-        
-        # Reshape for quantization
-        z_encoded_perm = z_encoded.permute(0, 2, 3, 1).contiguous()  # [batch, 6, 6, latent_dim]
-        z_encoded_flat = z_encoded_perm.view(-1, self.latent_dim)    # [batch*6*6, latent_dim]
-        
-        # Quantize
-        z_quantized_flat, vq_loss, perplexity, encodings = self.vq(z_encoded_flat)
-        z_quantized_perm = z_quantized_flat.view(z_encoded_perm.shape)
-        z_quantized = z_quantized_perm.permute(0, 3, 1, 2).contiguous()
-        
-        # Store VQ loss for later access
-        self.vq_loss = vq_loss
-        
-        # Decode
-        x_recon = self.decoder(z_quantized)
-        
-        return x_recon
+        z_encoded = self.encoder(x)  # [batch_size, latent_dim]
+        z_quantized, vq_loss = self.vector_quantizer(z_encoded)
+        x_recon = self.decode(z_quantized)
+        return x_recon, vq_loss
 
-    def loss(self, recon, x, beta=0.25):
+    def loss(self, recon, vq_loss, x, beta=0.25):
         recon_loss = nn.functional.mse_loss(recon, x, reduction='mean')
 
-        vq_loss = self.vq_loss if hasattr(self, 'vq_loss') else torch.tensor(0.0, device=x.device)
+        vq_loss = vq_loss
          
         total_loss = recon_loss + beta * vq_loss
         

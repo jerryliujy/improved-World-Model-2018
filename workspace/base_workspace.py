@@ -28,7 +28,7 @@ class BaseWorkspace:
         # configure training state
         self.global_step = 0
         self.epoch = 0
-        
+
         # configure env runner
         self.env_runner = hydra.utils.instantiate(cfg.env_runner)
         

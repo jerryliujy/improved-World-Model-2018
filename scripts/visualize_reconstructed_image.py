@@ -11,7 +11,7 @@ from models.vae import VAE
 from models.vq_vae import VQVAE
 from datasets.vision_dataset import VisionDataset
 
-def plot_images(original, reconstructed, n=4, save_path='outputs/imgs/reconstructed_images.png'):
+def plot_images(original, reconstructed, n=4, save_path='outputs/imgs/reconstructed_images_vq.png'):
     fig, axes = plt.subplots(2, n, figsize=(12, 7))
     
     for i in range(n):
@@ -34,8 +34,8 @@ if __name__ == "__main__":
     n = 4  
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
-    model = VAE(image_channels=3, latent_dim=32)
-    load_checkpoint(model, "checkpoints/stage_1_epoch_0003.pth")
+    model = VQVAE(image_channels=3, latent_dim=32)
+    load_checkpoint(model, "checkpoints/vqvae-rnn/stage_1_epoch_0010.pth")
     model = model.to(device)
     model.eval()
 
@@ -52,7 +52,7 @@ if __name__ == "__main__":
     images = images.to(device)
 
     with torch.no_grad():
-        reconstructed, _, _ = model(images.squeeze())
+        reconstructed, _ = model(images.squeeze())
     
     indices = torch.randperm(images.size(0))[:n]  # Select random images
     plot_images(images[indices], reconstructed[indices], n)

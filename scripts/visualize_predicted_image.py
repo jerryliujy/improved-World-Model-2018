@@ -10,9 +10,10 @@ from common.model_loader import load_checkpoint
 from models.vae import VAE
 from models.vq_vae import VQVAE
 from models.mdnrnn import MDNRNN, sample_mdn
+from models.mdntransformer import MDNTransformer
 from datasets.vision_dataset import VisionDataset
 
-def plot_images(original, reconstructed, n=4, save_path='outputs/imgs/predicted_images.png'):
+def plot_images(original, reconstructed, n=4, save_path='outputs/imgs/predicted_images_vqattn.png'):
     fig, axes = plt.subplots(2, n, figsize=(12, 7))
     
     for i in range(n):
@@ -35,17 +36,25 @@ if __name__ == "__main__":
     n = 4  
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
-    vision = VAE(image_channels=3, latent_dim=32)
-    predictor = MDNRNN(
-        latent_dim=32,  # latent_dim + action_dim
+    vision = VQVAE(image_channels=3, latent_dim=32)
+    # predictor = MDNRNN(
+    #     latent_dim=32,  # latent_dim + action_dim
+    #     action_dim=3,
+    #     hidden_dim=256,
+    #     num_gaussians=5,
+    #     num_layers=1,
+    # )
+    predictor = MDNTransformer(
+        latent_dim=32,
         action_dim=3,
         hidden_dim=256,
-        num_gaussians=5,
-        num_layers=1,
+        num_heads=8,
+        num_layers=6,
+        num_gaussians=5
     )
-    load_checkpoint(vision, "checkpoints/stage_1_epoch_0003.pth")
-    load_checkpoint(predictor, "checkpoints/stage_2_epoch_0005.pth")
-    
+    load_checkpoint(vision, "checkpoints/vqvae-transformer/stage_1_epoch_0010.pth")
+    load_checkpoint(predictor, "checkpoints/vqvae-transformer/stage_2_epoch_0010.pth")
+
     vision = vision.to(device)
     predictor = predictor.to(device)
     vision.eval()

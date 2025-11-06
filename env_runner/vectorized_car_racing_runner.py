@@ -30,7 +30,8 @@ class VectorizedCarRacingRunner:
         self.obs, _ = self.envs.reset()
 
     def evaluate(self, vision, predictor, controller_params_list,
-                       controller_class, num_rollouts=1, state_dim=288, action_dim=3):
+                 controller_class, num_rollouts=1, max_steps=1000,
+                 state_dim=288, action_dim=3):
         """
         Evaluate multiple controller parameters in parallel.
         
@@ -56,7 +57,7 @@ class VectorizedCarRacingRunner:
             
             # Run parallel environments
             rollout_rewards = self._run_parallel_envs(
-                vision, predictor, controllers
+                vision, predictor, controllers, max_steps=max_steps
             )
             rewards += np.array(rollout_rewards)
         
@@ -95,7 +96,7 @@ class VectorizedCarRacingRunner:
                             for i in range(x.size(0))], dim=0)
 
     
-    def _run_parallel_envs(self, vision, predictor, controllers):
+    def _run_parallel_envs(self, vision, predictor, controllers, max_steps=1000):
         """
         Run vectorized environments with multiple controllers.
         Key optimization: Process all environments simultaneously.
@@ -129,30 +130,25 @@ class VectorizedCarRacingRunner:
                 if np.all(dones):
                     break
                 
-                # ============ Batch encode observations ============
-                # Process all observations at once
+                # vision
                 z_batch = vision.encode(obs_tensor)  # [num_envs, latent_dim*36]
                 
-                # ============ Get hidden states ============
                 h = hidden[0].squeeze(0)
                 x = torch.cat([z_batch, h], dim=-1)
 
-                # ============ Combine state ============
                 state_batch = torch.cat([z_batch, h], dim=-1)  # [num_envs, state_dim]
                 
-                # ============ Get actions from all controllers (parallel) ============
+                # controller
                 actions = self._process_actions(controllers, state_batch)
                 actions = actions.detach().cpu().numpy()
                 
-                # ============ Step all environments ============
                 obs, rewards, dones_new, truncated, _ = self.envs.step(actions)
-
-                # ============ Update hidden states (batch) ============
+                
+                # predictor
                 z_batch_seq = z_batch.unsqueeze(1)  # [num_envs, 1, latent_dim*36]
                 actions_seq = torch.from_numpy(actions).float().to(self.device).unsqueeze(1)
                 _, _, _, hidden = predictor(z_batch_seq, actions_seq, h=hidden)
                 
-                # ============ Update metrics ============
                 cumulative_rewards += rewards * (~dones)
                 dones = np.logical_or(dones, dones_new | truncated)
                 obs_tensor = torch.stack([
