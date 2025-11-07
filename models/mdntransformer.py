@@ -88,7 +88,7 @@ class MDNTransformer(nn.Module):
         # mdn head
         action_outputs = outputs[:, 1::2, :]
         pi, mu, sigma = self.mdn(action_outputs, tau)
-        h = outputs[:, -1, :]
+        h = outputs[:, -1, :].unsqueeze(0) 
         return pi, mu, sigma, h  # h: transformer hidden states at the last time step 
     
     def loss(self, pi, mu, sigma, h, z_next):

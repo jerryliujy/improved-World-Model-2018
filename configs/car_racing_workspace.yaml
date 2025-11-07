@@ -24,14 +24,14 @@ env_runner:
   to_grayscale: ${dataset.to_grayscale}
 
 training:
-  stage: 2                    # 1: Vision, 2: Predictor, 3: Controller
+  stage: 3                    # 1: Vision, 2: Predictor, 3: Controller
   seed: 42
   num_epochs: 10               # Stage 1: 10, Stage 2: 10
   batch_size: 1               # Stage 1: 1024, Stage 2: 1
   save_interval: 10           # Save checkpoint every N epochs
-  checkpoint_dir: checkpoints/vqvae-rnn
+  checkpoint_dir: checkpoints/vae-transformer
   plot_save_dir: outputs/plots
-  train_method: dl      # dl or cma_es
+  train_method: cma_es      # dl or cma_es
   
   # Optimizer configuration
   # Stage 1
@@ -59,34 +59,35 @@ training:
     checkpoint_interval: 10
 
   vision_resume: true
-  vision_path: checkpoints/vqvae-rnn/stage_1_epoch_0010.pth
-  predictor_resume: false
-  predictor_path: checkpoints/vqvae-rnn/stage_2_epoch_0010.pth
-  controller_resume: false
-  controller_path: checkpoints/vqvae-rnn/stage_3_cma_gen_0080.pth
+  vision_path: checkpoints/vae-transformer/stage_1_epoch_0010.pth
+  predictor_resume: true
+  predictor_path: checkpoints/vae-transformer/stage_2_epoch_0010.pth
+  controller_resume: true
+  controller_path: checkpoints/vae-transformer/stage_3_cma_gen_0080.pth
+
 # Vision model configuration
 vision:
-  _target_: models.vq_vae.VQVAE
+  _target_: models.vae.VAE
   image_channels: 3  # should be 1 if greyscale
   latent_dim: 32
   # num_embeddings: 256
 
 # Memory model configuration
 predictor:
-  _target_: models.mdnrnn.MDNRNN
-  latent_dim: 32
-  action_dim: 3
-  hidden_dim: 256
-  num_gaussians: 5
-  num_layers: 1
-  
-  # _target_: models.mdntransformer.MDNTransformer
+  # _target_: models.mdnrnn.MDNRNN
   # latent_dim: 32
   # action_dim: 3
   # hidden_dim: 256
-  # num_heads: 8
-  # num_layers: 6
   # num_gaussians: 5
+  # num_layers: 1
+  
+  _target_: models.mdntransformer.MDNTransformer
+  latent_dim: 32
+  action_dim: 3
+  hidden_dim: 256
+  num_heads: 8
+  num_layers: 6
+  num_gaussians: 5
 
 # Controller configuration
 controller:
