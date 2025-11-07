@@ -17,21 +17,21 @@ dataloader:
   num_workers: 0
 
 env_runner:
-  _target_: env_runner.vectorized_car_racing_runner.VectorizedCarRacingRunner
+  _target_: env_runner.car_racing_runner.CarRacingRunner
   env_name: CarRacing-v3
-  num_envs: 8
+  # num_envs: 8
   device: ${device}
   to_grayscale: ${dataset.to_grayscale}
 
 training:
-  stage: 3                    # 1: Vision, 2: Predictor, 3: Controller
+  stage: 2                    # 1: Vision, 2: Predictor, 3: Controller
   seed: 42
   num_epochs: 10               # Stage 1: 10, Stage 2: 10
   batch_size: 1               # Stage 1: 1024, Stage 2: 1
   save_interval: 10           # Save checkpoint every N epochs
   checkpoint_dir: checkpoints/vqvae-rnn
   plot_save_dir: outputs/plots
-  train_method: cma_es      # dl or cma_es
+  train_method: dl      # dl or cma_es
   
   # Optimizer configuration
   # Stage 1
@@ -60,17 +60,16 @@ training:
 
   vision_resume: true
   vision_path: checkpoints/vqvae-rnn/stage_1_epoch_0010.pth
-  predictor_resume: true
+  predictor_resume: false
   predictor_path: checkpoints/vqvae-rnn/stage_2_epoch_0010.pth
   controller_resume: false
-  controller_path: checkpoints/vae-rnn/stage_3_cma_gen_0100.pth
-
+  controller_path: checkpoints/vqvae-rnn/stage_3_cma_gen_0080.pth
 # Vision model configuration
 vision:
   _target_: models.vq_vae.VQVAE
   image_channels: 3  # should be 1 if greyscale
   latent_dim: 32
-  num_embeddings: 256
+  # num_embeddings: 256
 
 # Memory model configuration
 predictor:
@@ -97,8 +96,8 @@ controller:
 
 # Evaluation configuration
 eval:
-  num_episodes: 5
+  num_episodes: 10
   max_steps: 1000
   render: false
   save_video: true
-  output_dir: outputs/eval
+  output_dir: outputs/eval/vae-transformer
