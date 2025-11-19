@@ -102,3 +102,17 @@ eval:
   render: false
   save_video: true
   output_dir: outputs/eval/vae-transformer
+
+eval_vision:
+  output_dir: outputs/eval/vision
+
+eval_predictor:
+  output_dir: outputs/eval/predictor
+
+# Evaluation configuration
+# eval:
+#   num_episodes: 5
+#   max_steps: 1000
+#   render: false
+#   save_video: true
+#   video_filename: car_racing_eval.avi
