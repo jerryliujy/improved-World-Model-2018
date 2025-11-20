@@ -1,6 +1,8 @@
 import json
 import os
 from datetime import datetime
+import sys
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import torch
 import hydra
@@ -9,7 +11,10 @@ import pathlib
 from hydra.utils import instantiate
 
 from common.model_loader import load_checkpoint
+from common.psnr import psnr
 from datasets.dataloader import get_dataloaders
+from datasets.car_racing_vision_dataset import CarRacingVisionDataset
+from datasets.breakout_vision_dataset import BreakoutVisionDataset
 
 
 def load_models(cfg, device):
@@ -27,27 +32,24 @@ def load_models(cfg, device):
 
 def evaluate_vision(vision, test_loader, device):
     vision.eval()
-    total_loss = 0.0
+    total_psnr = 0.0
     total_batches = 0
 
     with torch.no_grad():
         for batch in test_loader:
-            z, actions, _, _, next_z = batch
-            z = z.to(device)
-            actions = actions.to(device)
-            next_z = next_z.to(device)
+            images, _, _, _, _ = batch
+            images = images.to(device)
 
-            outputs = vision(z)
-            loss = vision.loss(*outputs, z)
-            total_loss += loss.item()
+            outputs, _ = vision(images)
+            psnr_value = psnr(outputs, images)
+            total_psnr += psnr_value.item()
             total_batches += 1
-
-    return total_loss / max(total_batches, 1)
+    return total_psnr / max(total_batches, 1)
 
 
 @hydra.main(
     version_base=None,
-    config_path=str(pathlib.Path(__file__).parent.joinpath('configs')),
+    config_path=str(pathlib.Path(__file__).parent.parent.joinpath('configs')),
     config_name='car_racing_workspace'
 )
 def main(cfg: OmegaConf):
@@ -56,6 +58,9 @@ def main(cfg: OmegaConf):
     device = torch.device(cfg.device)
     vision = load_models(cfg, device)
     dataset = instantiate(cfg.dataset)
+    assert isinstance(dataset, CarRacingVisionDataset) or \
+        isinstance(dataset, BreakoutVisionDataset), \
+        "Dataset must be an instance of CarRacingVisionDataset or BreakoutVisionDataset."
 
     _, _, test_loader = get_dataloaders(
         dataset,
@@ -66,15 +71,15 @@ def main(cfg: OmegaConf):
         num_workers=cfg.dataloader.num_workers,
     )
 
-    test_loss = evaluate_vision(vision, test_loader, device)
+    test_psnr = evaluate_vision(vision, test_loader, device)
 
     timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
     os.makedirs(cfg.eval_vision.output_dir, exist_ok=True)
     summary_path = os.path.join(cfg.eval_vision.output_dir, f"vision_test_{timestamp}.json")
     summary = {
-        "config": cfg,
+        "config": OmegaConf.to_container(cfg, resolve=True),
         "device": str(device),
-        "test_loss": test_loss,
+        "test_psnr": test_psnr,
         "num_test_batches": len(test_loader),
     }
 

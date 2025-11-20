@@ -141,6 +141,15 @@ class VectorizedCarRacingRunner:
                 # controller
                 actions = self._process_actions(controllers, state_batch)
                 actions = actions.detach().cpu().numpy()
+
+                # action space in breakout is discrete
+                if actions.dim() == 1:
+                    max_idx = torch.argmax(actions)
+                    actions = torch.zeros_like(actions)
+                    actions[max_idx] = 1.0
+                else:
+                    max_idx = torch.argmax(actions, dim=-1)
+                    actions = torch.nn.functional.one_hot(max_idx, num_classes=actions.shape[-1]).float()
                 
                 obs, rewards, dones_new, truncated, _ = self.envs.step(actions)
                 

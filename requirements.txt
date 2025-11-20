@@ -23,3 +23,4 @@ swig==4.4.0
 minari==0.5.2
 minari[hf]
 gymnasium[box2d]
+gymnasium[atari]

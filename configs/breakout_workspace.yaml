@@ -1,0 +1,120 @@
+name: car_racing_workspace
+
+device: cuda
+
+workspace:
+  _target_: workspace.base_workspace.BaseWorkspace
+
+dataset:
+  _target_: datasets.breakout_vision_dataset.BreakoutVisionDataset
+  h5_path: outputs/data/breakout_data.hdf5
+  to_grayscale: true
+  one_hot_actions: true
+  num_actions: 4
+
+dataloader:
+  train_ratio: 0.8
+  val_ratio: 0.1
+  test_ratio: 0.1
+  num_workers: 0
+
+env_runner:
+  _target_: env_runner.breakout_runner.BreakoutRunner
+  env_name: ALE/Breakout-v5
+  # num_envs: 8
+  device: ${device}
+  to_grayscale: ${dataset.to_grayscale}
+
+training:
+  stage: 1                    # 1: Vision, 2: Predictor, 3: Controller
+  seed: 42
+  num_epochs: 10               # Stage 1: 10, Stage 2: 10
+  batch_size: 1024               # Stage 1: 1024, Stage 2: 1
+  save_interval: 10           # Save checkpoint every N epochs
+  checkpoint_dir: checkpoints/breakout/vqvae-transformer
+  plot_save_dir: outputs/plots
+  train_method: dl      # dl or cma_es
+  
+  # Optimizer configuration
+  # Stage 1
+  optimizer:
+    _target_: torch.optim.AdamW
+    lr: 1e-3
+    betas: [0.9, 0.999]
+    weight_decay: 1e-6
+    eps: 1e-8
+
+  # Stage 2
+  # optimizer:
+  #   _target_: torch.optim.Adam
+  #   lr: 1e-4
+  #   betas: [0.9, 0.999]
+  #   eps: 1e-8
+  
+  # CMA-ES configuration for stage 3
+  cma_es:
+    max_generations: 100      
+    initial_sigma: 0.1
+    popsize: 16
+    num_rollouts: 7
+    max_steps: 1000
+    checkpoint_interval: 10
+
+  vision_resume: false
+  vision_path: checkpoints/breakout/vqvae-transformer/stage_1_epoch_0010.pth
+  predictor_resume: false
+  predictor_path: checkpoints/breakout/vqvae-transformer/stage_2_epoch_0010.pth
+  controller_resume: false
+  controller_path: checkpoints/breakout/vqvae-transformer/stage_3_cma_gen_0080.pth
+
+# Vision model configuration
+vision:
+  _target_: models.vq_vae.VQVAE
+  image_channels: 1  # should be 1 if greyscale
+  latent_dim: 32
+  num_embeddings: 256
+
+# Memory model configuration
+predictor:
+  # _target_: models.mdnrnn.MDNRNN
+  # latent_dim: 32
+  # action_dim: 3
+  # hidden_dim: 256
+  # num_gaussians: 5
+  # num_layers: 1
+  
+  _target_: models.mdntransformer.MDNTransformer
+  latent_dim: 32
+  action_dim: 4
+  hidden_dim: 256
+  num_heads: 8
+  num_layers: 6
+  num_gaussians: 5
+
+# Controller configuration
+controller:
+  _target_: models.controller.Controller
+  state_dim: 288              # latent_dim(32) + hidden_dim(256)
+  action_dim: 4
+
+# Evaluation configuration
+eval:
+  num_episodes: 10
+  max_steps: 1000
+  render: false
+  save_video: true
+  output_dir: outputs/eval/breakout/vqvae-transformer
+
+eval_vision:
+  output_dir: outputs/eval/breakout/vqvae-transformer/vision
+
+eval_predictor:
+  output_dir: outputs/eval/breakout/vqvae-transformer/predictor
+
+# Evaluation configuration
+# eval:
+#   num_episodes: 5
+#   max_steps: 1000
+#   render: false
+#   save_video: true
+#   video_filename: car_racing_eval.avi

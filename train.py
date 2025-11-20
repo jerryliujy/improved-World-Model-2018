@@ -15,7 +15,7 @@ OmegaConf.register_new_resolver("eval", eval, replace=True)
 @hydra.main(
     version_base=None,
     config_path=str(pathlib.Path(__file__).parent.joinpath('configs')),
-    config_name='car_racing_workspace'
+    config_name='breakout_workspace'
 )
 def main(cfg: OmegaConf):
     # resolve immediately so all the ${now:} resolvers

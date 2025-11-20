@@ -6,7 +6,7 @@ workspace:
   _target_: workspace.base_workspace.BaseWorkspace
 
 dataset:
-  _target_: datasets.predictor_dataset.PredictorDataset
+  _target_: datasets.vision_dataset.VisionDataset
   h5_path: outputs/data/car_racing_data.h5
   to_grayscale: false
 
@@ -29,7 +29,7 @@ training:
   num_epochs: 10               # Stage 1: 10, Stage 2: 10
   batch_size: 1               # Stage 1: 1024, Stage 2: 1
   save_interval: 10           # Save checkpoint every N epochs
-  checkpoint_dir: checkpoints/vae-transformer
+  checkpoint_dir: checkpoints/vqvae-transformer
   plot_save_dir: outputs/plots
   train_method: cma_es      # dl or cma_es
   
@@ -59,18 +59,17 @@ training:
     checkpoint_interval: 10
 
   vision_resume: true
-  vision_path: checkpoints/vae-transformer/stage_1_epoch_0010.pth
+  vision_path: checkpoints/car_racing/vqvae-transformer/stage_1_epoch_0010.pth
   predictor_resume: true
-  predictor_path: checkpoints/vae-transformer/stage_2_epoch_0010.pth
+  predictor_path: checkpoints/car_racing/vqvae-transformer/stage_2_epoch_0010.pth
   controller_resume: true
-  controller_path: checkpoints/vae-transformer/stage_3_cma_gen_0080.pth
-
+  controller_path: checkpoints/car_racing/vqvae-transformer/stage_3_cma_gen_0080.pth
 # Vision model configuration
 vision:
-  _target_: models.vae.VAE
+  _target_: models.vq_vae.VQVAE
   image_channels: 3  # should be 1 if greyscale
   latent_dim: 32
-  # num_embeddings: 256
+  num_embeddings: 256
 
 # Memory model configuration
 predictor:
@@ -101,13 +100,13 @@ eval:
   max_steps: 1000
   render: false
   save_video: true
-  output_dir: outputs/eval/vae-transformer
+  output_dir: outputs/eval/car_racing/vqvae-transformer
 
 eval_vision:
-  output_dir: outputs/eval/vision
+  output_dir: outputs/eval/car_racing/vqvae-transformer/vision
 
 eval_predictor:
-  output_dir: outputs/eval/predictor
+  output_dir: outputs/eval/car_racing/vqvae-transformer/predictor
 
 # Evaluation configuration
 # eval:

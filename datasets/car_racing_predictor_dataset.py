@@ -5,7 +5,7 @@ from typing import Tuple
 from common.img_process import preprocess_carracing_image
 
 
-class PredictorDataset(Dataset):
+class CarRacingPredictorDataset(Dataset):
     """
     PyTorch Dataset for data stored in HDF5 format.
     

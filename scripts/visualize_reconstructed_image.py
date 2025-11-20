@@ -9,7 +9,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from common.model_loader import load_checkpoint
 from models.vae import VAE
 from models.vq_vae import VQVAE
-from datasets.vision_dataset import VisionDataset
+from datasets.car_racing_vision_dataset import CarRacingVisionDataset
 
 def plot_images(original, reconstructed, n=4, save_path='outputs/imgs/reconstructed_images_vq.png'):
     fig, axes = plt.subplots(2, n, figsize=(12, 7))
@@ -39,7 +39,7 @@ if __name__ == "__main__":
     model = model.to(device)
     model.eval()
 
-    dataset = VisionDataset(h5_path=h5_path, to_grayscale=False)
+    dataset = CarRacingVisionDataset(h5_path=h5_path, to_grayscale=False)
     
     dataloader = DataLoader(
         dataset, 

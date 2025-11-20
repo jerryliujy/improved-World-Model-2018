@@ -10,7 +10,6 @@ import torch
 import matplotlib.pyplot as plt
 import cma
 from datasets.dataloader import get_dataloaders
-from datasets.predictor_dataset import PredictorDataset
 from common.model_loader import save_checkpoint, load_checkpoint
 
 
@@ -70,7 +69,6 @@ class BaseWorkspace:
         dataset = hydra.utils.instantiate(cfg.dataset)
         if cfg.training.stage == 2:
             # encode images in the dataset
-            assert(isinstance(dataset, PredictorDataset) and cfg.training.vision_resume)
             dataset.preencode_images(self.vision, device=cfg.device)
             
         self.train_loader, self.val_loader, self.test_loader = get_dataloaders(

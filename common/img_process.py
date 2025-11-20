@@ -73,7 +73,8 @@ def preprocess_breakout_image(image: np.ndarray) -> torch.Tensor:
     # Typical Atari image is 210x160, crop top 20 pixels and bottom 20 pixels
     cropped = image[20:200, :, :]
     
-    img_pil = resize_obs(cropped)
+    resized = resize_obs(cropped)
+    img_pil = Image.fromarray(resized)
     
     # Convert to grayscale (1 channel)
     img_gray = img_pil.convert('L')
